@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=1280"/>
+  <title>StudyMind — Tasks</title>
+  <link rel="stylesheet" href="../css/base.css"/>
+</head>
+<body>
+<div id="app" class="app"></div>
+<div id="toast-container"></div>
+
+<!-- Add task modal -->
+<div class="modal-overlay" id="modal-task">
+  <div class="modal">
+    <div class="modal__header">
+      <div class="modal__title">New task</div>
+      <button class="modal__close" data-modal-close>
+        <svg class="icon" width="14" height="14" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="col">
+      <div class="form-group">
+        <label class="form-label">Task title</label>
+        <input class="form-input" id="new-task-title" placeholder="e.g. Quadratic functions practice"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Subject</label>
+        <select class="form-input" id="new-task-subject">
+          <option>Math</option><option>Physics</option><option>Chemistry</option>
+          <option>Biology</option><option>History</option><option>Portuguese</option>
+        </select>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="form-group">
+          <label class="form-label">Priority</label>
+          <select class="form-input" id="new-task-priority">
+            <option value="high">High</option>
+            <option value="med" selected>Medium</option>
+            <option value="low">Low</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Estimated time</label>
+          <input class="form-input" id="new-task-time" placeholder="e.g. 30m"/>
+        </div>
+      </div>
+    </div>
+    <div class="modal__footer">
+      <button class="btn btn--ghost" data-modal-close>Cancel</button>
+      <button class="btn btn--primary" onclick="addTask()">Create task</button>
+    </div>
+  </div>
+</div>
+
+<script src="../js/shared.js"></script>
+<script>
+let filterSubject = 'all';
+let filterStatus  = 'all';
+let filterPriority = 'all';
+let sortBy = 'priority';
+let nextId = State.tasks.length + 1;
+
+const pOrder = { high:0, med:1, low:2 };
+const pLabel = { high:'High', med:'Medium', low:'Low' };
+const pBadge = { high:'rose', med:'amber', low:'muted' };
+
+function getFiltered() {
+  return State.tasks
+    .filter(t => filterSubject === 'all' || t.subject === filterSubject)
+    .filter(t => filterStatus === 'all' || (filterStatus === 'done' ? t.done : !t.done))
+    .filter(t => filterPriority === 'all' || t.priority === filterPriority)
+    .sort((a,b) => sortBy === 'priority' ? pOrder[a.priority] - pOrder[b.priority] : a.title.localeCompare(b.title));
+}
+
+function toggleTask(id) {
+  const t = State.tasks.find(t => t.id === id);
+  if (t) { t.done = !t.done; showToast(t.done ? 'Task completed! 🎯' : 'Task reopened'); renderTasks(); }
+}
+
+function deleteTask(id) {
+  const idx = State.tasks.findIndex(t => t.id === id);
+  if (idx !== -1) { State.tasks.splice(idx,1); showToast('Task deleted'); renderTasks(); }
+}
+
+function addTask() {
+  const title = document.getElementById('new-task-title').value.trim();
+  const subject = document.getElementById('new-task-subject').value;
+  const priority = document.getElementById('new-task-priority').value;
+  const time = document.getElementById('new-task-time').value || '—';
+  if (!title) { showToast('Task title is required', 'error'); return; }
+  State.tasks.unshift({ id: nextId++, title, sub: `${subject} · added today`, subject, priority, time, done: false });
+  closeModal('modal-task');
+  document.getElementById('new-task-title').value = '';
+  renderTasks();
+  showToast(`Task "${title}" created!`);
+}
+
+function renderTasks() {
+  const tasks = getFiltered();
+  const pending = State.tasks.filter(t=>!t.done).length;
+  const done    = State.tasks.filter(t=>t.done).length;
+
+  // update summary
+  document.getElementById('task-summary').innerHTML = `
+    <span style="color:var(--fg-1);font-weight:500">${pending}</span> pending &nbsp;·&nbsp;
+    <span style="color:var(--emerald-400);font-weight:500">${done}</span> done &nbsp;·&nbsp;
+    <span style="color:var(--fg-4)">${State.tasks.length} total</span>`;
+
+  const list = document.getElementById('tasks-list');
+  if (!tasks.length) {
+    list.innerHTML = `<div class="empty-state">${icon('check-square',32)}<p>No tasks match the current filter</p></div>`;
+    return;
+  }
+
+  list.innerHTML = tasks.map(t => `
+    <div class="task${t.done ? ' task--done':''}">
+      <div class="task__check" onclick="event.stopPropagation();toggleTask(${t.id})">${icon('check',10)}</div>
+      <div onclick="toggleTask(${t.id})">
+        <div class="task__title">${t.title}</div>
+        <div class="task__sub">${t.sub}</div>
+      </div>
+      <span class="badge badge--${pBadge[t.priority]}">${pLabel[t.priority]}</span>
+      <div class="task__time">${t.time}</div>
+      <button class="btn btn--ghost btn--sm btn--icon" onclick="deleteTask(${t.id})" title="Delete task" style="color:var(--fg-4)">
+        ${icon('trash',13)}
+      </button>
+    </div>`).join('');
+}
+
+function render() {
+  const pending = State.tasks.filter(t=>!t.done).length;
+  const subjects = ['all', ...State.subjects.map(s=>s.name)];
+
+  document.getElementById('app').innerHTML = `
+    ${buildSidebar('tasks')}
+    <div>
+      ${buildTopbar('Workspace','Tasks')}
+      <main class="main page-enter">
+
+        <div class="section__head">
+          <div>
+            <h1 class="section__title">${icon('check-square',20)} Tasks</h1>
+            <p class="section__sub" id="task-summary"></p>
+          </div>
+          <button class="btn btn--primary" onclick="openModal('modal-task')">${icon('plus',14)} New task</button>
+        </div>
+
+        <!-- Filter bar -->
+        <div class="filter-bar">
+          <div class="filter-group">
+            <span class="filter-label">Subject</span>
+            <div class="filter-pills" id="filter-subject">
+              ${subjects.map(s => `<button class="filter-pill${filterSubject===s?' active':''}" onclick="setFilter('subject','${s}')">${s==='all'?'All':s}</button>`).join('')}
+            </div>
+          </div>
+          <div style="flex:1"></div>
+          <div class="row" style="gap:8px">
+            <select class="form-input" style="width:auto;padding:7px 12px;font-size:13px" onchange="filterStatus=this.value;renderTasks()">
+              <option value="all">All status</option>
+              <option value="pending">Pending</option>
+              <option value="done">Done</option>
+            </select>
+            <select class="form-input" style="width:auto;padding:7px 12px;font-size:13px" onchange="filterPriority=this.value;renderTasks()">
+              <option value="all">All priority</option>
+              <option value="high">High</option>
+              <option value="med">Medium</option>
+              <option value="low">Low</option>
+            </select>
+            <select class="form-input" style="width:auto;padding:7px 12px;font-size:13px" onchange="sortBy=this.value;renderTasks()">
+              <option value="priority">Sort: Priority</option>
+              <option value="title">Sort: Name</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Stats row -->
+        <div class="grid-4" style="margin:20px 0">
+          ${[
+            {label:'Pending', val:State.tasks.filter(t=>!t.done).length, ico:'clock', cls:''},
+            {label:'Completed', val:State.tasks.filter(t=>t.done).length, ico:'check-circle', cls:'stat__icon--em'},
+            {label:'High priority', val:State.tasks.filter(t=>t.priority==='high'&&!t.done).length, ico:'alert', cls:'stat__icon--rs'},
+            {label:'This week', val:State.tasks.length, ico:'calendar', cls:'stat__icon--am'},
+          ].map(c => `
+            <div class="card stat card--hover">
+              <div class="stat__head"><div class="stat__icon ${c.cls}">${icon(c.ico,16)}</div></div>
+              <div class="stat__label">${c.label}</div>
+              <div class="stat__value">${c.val}</div>
+            </div>`).join('')}
+        </div>
+
+        <!-- Task list -->
+        <div class="card card--padded">
+          <div id="tasks-list"></div>
+        </div>
+
+        ${buildTechStrip()}
+      </main>
+    </div>`;
+
+  initModals();
+  renderTasks();
+
+  document.querySelectorAll('.task').forEach(t => {
+    t.style.gridTemplateColumns = '22px 1fr auto auto auto';
+  });
+}
+
+function setFilter(type, val) {
+  if (type === 'subject') filterSubject = val;
+  document.querySelectorAll(`#filter-${type} .filter-pill`).forEach(p => p.classList.toggle('active', p.textContent.trim() === (val==='all'?'All':val)));
+  renderTasks();
+}
+
+render();
+</script>
+
+<style>
+.filter-bar {
+  display: flex; align-items: center; gap: 16px;
+  padding: 14px 16px;
+  background: var(--bg-3); border: 1px solid var(--border-1);
+  border-radius: var(--r-xl);
+  margin-top: 20px;
+  flex-wrap: wrap;
+}
+.filter-label { font-size: 11px; color: var(--fg-4); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 500; white-space: nowrap; }
+.filter-group { display: flex; align-items: center; gap: 8px; }
+.filter-pills { display: flex; gap: 4px; flex-wrap: wrap; }
+.filter-pill {
+  padding: 5px 12px; border-radius: var(--r-pill);
+  font-size: 12px; font-weight: 500;
+  background: transparent; color: var(--fg-3);
+  border: 1px solid transparent;
+  cursor: pointer; transition: all var(--dur-base) var(--ease-out);
+  font-family: inherit;
+}
+.filter-pill:hover { background: var(--bg-4); color: var(--fg-1); }
+.filter-pill.active { background: rgba(99,102,241,0.12); color: var(--indigo-400); border-color: rgba(99,102,241,0.25); }
+.task { grid-template-columns: 22px 1fr auto auto auto !important; }
+</style>
+</body>
+</html>

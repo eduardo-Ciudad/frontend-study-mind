@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=1280"/>
+  <title>StudyMind — Subjects</title>
+  <link rel="stylesheet" href="../css/base.css"/>
+</head>
+<body>
+<div id="app" class="app"></div>
+<div id="toast-container"></div>
+
+<!-- Add Topic Modal -->
+<div class="modal-overlay" id="modal-topic">
+  <div class="modal">
+    <div class="modal__header">
+      <div class="modal__title">Add topic</div>
+      <button class="modal__close" data-modal-close>${icon_raw('x')}</button>
+    </div>
+    <div class="col">
+      <div class="form-group">
+        <label class="form-label">Subject</label>
+        <select class="form-input" id="new-topic-subject">
+          <option value="">Select subject</option>
+          <option>Math</option><option>Physics</option><option>Chemistry</option>
+          <option>Biology</option><option>History</option><option>Portuguese</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Topic name</label>
+        <input class="form-input" id="new-topic-name" placeholder="e.g. Quadratic functions"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Difficulty</label>
+        <select class="form-input" id="new-topic-diff">
+          <option value="easy">Easy</option>
+          <option value="medium" selected>Medium</option>
+          <option value="hard">Hard</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal__footer">
+      <button class="btn btn--ghost" data-modal-close>Cancel</button>
+      <button class="btn btn--primary" onclick="addTopic()">Add topic</button>
+    </div>
+  </div>
+</div>
+
+<script src="../js/shared.js"></script>
+<script>
+function icon_raw(name) {
+  const map = {
+    x: `<svg class="icon" width="14" height="14" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`
+  };
+  return map[name] || '';
+}
+
+const topicsData = {
+  Math:       [{name:'Algebra basics', done:true, diff:'easy'},{name:'Quadratic functions', done:false, diff:'medium'},{name:'Exponential functions', done:false, diff:'medium'},{name:'Trigonometry', done:false, diff:'hard'},{name:'Geometry', done:false, diff:'medium'}],
+  Physics:    [{name:'Kinematics', done:true, diff:'medium'},{name:'Dynamics', done:false, diff:'hard'},{name:'Energy & Work', done:false, diff:'medium'},{name:'Waves', done:false, diff:'hard'}],
+  Chemistry:  [{name:'Periodic table', done:true, diff:'easy'},{name:'Stoichiometry', done:false, diff:'hard'},{name:'Solutions', done:false, diff:'medium'}],
+  Biology:    [{name:'Cell biology', done:true, diff:'easy'},{name:'Cell respiration', done:false, diff:'medium'},{name:'Photosynthesis', done:false, diff:'medium'},{name:'Genetics', done:false, diff:'hard'}],
+  History:    [{name:'Colonial Brazil', done:true, diff:'medium'},{name:'Imperial Brazil', done:true, diff:'medium'},{name:'Vargas era', done:false, diff:'medium'},{name:'Military dictatorship', done:false, diff:'hard'}],
+  Portuguese: [{name:'Reading comprehension', done:false, diff:'medium'},{name:'Text interpretation', done:false, diff:'medium'},{name:'Grammar review', done:true, diff:'easy'},{name:'Essay structure', done:false, diff:'hard'}],
+};
+
+let activeSubject = 'Math';
+const diffColor = { easy:'emerald', medium:'amber', hard:'rose' };
+
+function setActiveSubject(name) {
+  activeSubject = name;
+  renderTopics();
+  document.querySelectorAll('.subj-card').forEach(c => c.classList.toggle('subj-card--active', c.dataset.name === name));
+}
+
+function renderTopics() {
+  const subj = State.subjects.find(s => s.name === activeSubject);
+  const topics = topicsData[activeSubject] || [];
+  const done = topics.filter(t => t.done).length;
+
+  document.getElementById('topic-panel').innerHTML = `
+    <div class="card card--padded" style="height:100%">
+      <div class="card__header">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div class="roadmap__icon" style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,${subj.color},${subj.color2})">${subj.init}</div>
+          <div>
+            <div class="card__title" style="font-size:18px">${subj.name}</div>
+            <div class="card__sub">${done}/${topics.length} topics covered · ${subj.accuracy}% accuracy</div>
+          </div>
+        </div>
+        <button class="btn btn--primary btn--sm" onclick="openModal('modal-topic')">${icon('plus',12)} Add topic</button>
+      </div>
+
+      <div class="progress-bar" style="margin-bottom:24px">
+        <div class="progress-bar__fill" style="width:${subj.pct}%;background:linear-gradient(90deg,${subj.color},${subj.color2});box-shadow:0 0 12px ${subj.color}44"></div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:8px">
+        ${topics.map((t,i) => `
+          <div class="topic-item${t.done ? ' topic-item--done' : ''}" onclick="toggleTopicDone('${activeSubject}',${i})">
+            <div class="task__check">${icon('check',10)}</div>
+            <div style="flex:1">
+              <div style="font-size:14px;font-weight:500;color:${t.done ? 'var(--fg-4)' : 'var(--fg-1)'};${t.done ? 'text-decoration:line-through':''}">
+                ${t.name}
+              </div>
+            </div>
+            <span class="badge badge--${diffColor[t.diff]}">${t.diff}</span>
+            <button class="btn btn--ghost btn--sm btn--icon" onclick="event.stopPropagation();showToast('Edit: ${t.name}')" title="Edit">
+              ${icon('edit',13)}
+            </button>
+          </div>`).join('')}
+      </div>
+    </div>`;
+}
+
+function toggleTopicDone(subject, idx) {
+  topicsData[subject][idx].done = !topicsData[subject][idx].done;
+  const t = topicsData[subject][idx];
+  showToast(t.done ? `"${t.name}" marked complete!` : `"${t.name}" reopened`);
+  renderTopics();
+}
+
+function addTopic() {
+  const subj = document.getElementById('new-topic-subject').value;
+  const name = document.getElementById('new-topic-name').value.trim();
+  const diff = document.getElementById('new-topic-diff').value;
+  if (!subj || !name) { showToast('Fill all fields', 'error'); return; }
+  if (!topicsData[subj]) topicsData[subj] = [];
+  topicsData[subj].push({ name, done: false, diff });
+  closeModal('modal-topic');
+  if (activeSubject === subj) renderTopics();
+  showToast(`Topic "${name}" added to ${subj}!`);
+  document.getElementById('new-topic-name').value = '';
+}
+
+function render() {
+  document.getElementById('app').innerHTML = `
+    ${buildSidebar('subjects')}
+    <div>
+      ${buildTopbar('Workspace','Subjects')}
+      <main class="main page-enter">
+
+        <div class="section__head">
+          <div>
+            <h1 class="section__title">${icon('book',20)} Subjects & Topics</h1>
+            <p class="section__sub">Track your coverage per subject and manage individual topics</p>
+          </div>
+          <button class="btn btn--primary btn--sm" onclick="openModal('modal-topic')">${icon('plus',12)} New topic</button>
+        </div>
+
+        <div class="subj-layout">
+          <!-- Subject cards sidebar -->
+          <div style="display:flex;flex-direction:column;gap:10px">
+            ${State.subjects.map(s => {
+              const topics = topicsData[s.name] || [];
+              const done = topics.filter(t=>t.done).length;
+              const statusColor = s.status === 'track' ? 'emerald' : s.status === 'lag' ? 'amber' : 'rose';
+              return `
+              <div class="subj-card${s.name === activeSubject ? ' subj-card--active' : ''}"
+                   data-name="${s.name}" onclick="setActiveSubject('${s.name}')"
+                   style="--subj-color:${s.color}">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+                  <div class="roadmap__icon" style="background:linear-gradient(135deg,${s.color},${s.color2})">${s.init}</div>
+                  <div style="flex:1">
+                    <div style="font-size:14px;font-weight:600;color:var(--fg-1)">${s.name}</div>
+                    <span class="badge badge--${statusColor}" style="font-size:10px;padding:2px 7px">${s.status === 'track' ? 'On track' : s.status === 'lag' ? 'Lagging' : 'At risk'}</span>
+                  </div>
+                  <div style="font-family:var(--font-mono);font-size:16px;font-weight:600;color:var(--fg-1)">${s.accuracy}%</div>
+                </div>
+                <div class="progress-bar" style="height:5px;margin-bottom:8px">
+                  <div class="progress-bar__fill" style="width:${s.pct}%;background:linear-gradient(90deg,${s.color},${s.color2})"></div>
+                </div>
+                <div style="font-size:11px;color:var(--fg-4)">${done}/${topics.length} topics · ${s.topic}</div>
+              </div>`;
+            }).join('')}
+          </div>
+
+          <!-- Topics panel -->
+          <div id="topic-panel"></div>
+        </div>
+
+        ${buildTechStrip()}
+      </main>
+    </div>`;
+
+  renderTopics();
+  initModals();
+}
+
+render();
+</script>
+
+<style>
+.subj-layout { display: grid; grid-template-columns: 280px 1fr; gap: 20px; margin-top: 20px; }
+.subj-card {
+  padding: 16px; border-radius: var(--r-xl);
+  background: var(--bg-4); background-image: var(--grad-card);
+  border: 1px solid var(--border-2);
+  cursor: pointer; transition: all var(--dur-base) var(--ease-out);
+}
+.subj-card:hover { border-color: var(--border-3); background-color: var(--bg-5); }
+.subj-card--active {
+  border-color: var(--subj-color, var(--indigo-500));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--subj-color, #6366F1) 30%, transparent), 0 0 20px color-mix(in srgb, var(--subj-color, #6366F1) 15%, transparent);
+}
+.topic-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 12px; border-radius: var(--r-md);
+  border: 1px solid var(--border-1);
+  background: rgba(255,255,255,0.015);
+  cursor: pointer; transition: all var(--dur-base) var(--ease-out);
+}
+.topic-item:hover { border-color: var(--border-3); background: rgba(255,255,255,0.025); }
+.topic-item--done .task__check { background: var(--emerald-500); border-color: var(--emerald-500); box-shadow: 0 0 12px var(--emerald-glow); }
+.topic-item--done .task__check .icon { display: block; }
+</style>
+</body>
+</html>

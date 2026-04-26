@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>StudyMind — Login</title>
+  <link rel="stylesheet" href="../css/tokens.css"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      min-height: 100vh;
+      background: var(--grad-page);
+      background-attachment: fixed;
+      font-family: var(--font-sans);
+      font-size: 14px;
+      line-height: 1.5;
+      color: var(--fg-2);
+      -webkit-font-smoothing: antialiased;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    .auth-wrap {
+      width: 100%; max-width: 440px;
+      padding: 24px;
+      animation: fadeUp 400ms var(--ease-out) both;
+    }
+    @keyframes fadeUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+
+    /* logo */
+    .auth-logo {
+      display: flex; align-items: center; gap: 10px;
+      justify-content: center;
+      margin-bottom: 40px;
+    }
+    .auth-logo-mark {
+      width: 40px; height: 40px; border-radius: 12px;
+      background: linear-gradient(135deg, #6366F1, #4F46E5);
+      display: grid; place-items: center;
+      box-shadow: 0 0 0 1px rgba(99,102,241,0.35), 0 8px 32px rgba(99,102,241,0.25);
+    }
+    .auth-logo-text { font-size: 22px; font-weight: 600; color: var(--fg-1); letter-spacing: -0.02em; }
+    .auth-logo-text span { color: #818CF8; }
+
+    /* card */
+    .auth-card {
+      background: var(--bg-4);
+      background-image: linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0) 100%);
+      border: 1px solid var(--border-2);
+      border-radius: var(--r-3xl);
+      padding: 40px;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.04);
+    }
+    .auth-heading { font-size: 24px; font-weight: 600; color: var(--fg-1); letter-spacing: -0.02em; margin-bottom: 6px; }
+    .auth-sub     { font-size: 14px; color: var(--fg-4); margin-bottom: 32px; }
+
+    /* tabs */
+    .auth-tabs {
+      display: grid; grid-template-columns: 1fr 1fr;
+      background: var(--bg-3); border-radius: 10px;
+      padding: 4px; gap: 4px;
+      margin-bottom: 28px;
+    }
+    .auth-tab {
+      padding: 8px; border-radius: 8px;
+      font-size: 13px; font-weight: 500;
+      cursor: pointer; text-align: center;
+      color: var(--fg-4);
+      transition: all 200ms cubic-bezier(0.22,1,0.36,1);
+      user-select: none;
+    }
+    .auth-tab.active { background: var(--bg-5); color: var(--fg-1); box-shadow: inset 0 0 0 1px rgba(99,102,241,0.20); }
+
+    /* form */
+    .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+    .form-label { font-size: 12px; font-weight: 500; color: var(--fg-3); letter-spacing: 0.08em; text-transform: uppercase; }
+    .input-wrap { position: relative; }
+    .input-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--fg-4); pointer-events: none; }
+    .input-icon svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+    .form-input {
+      width: 100%; padding: 11px 14px 11px 40px;
+      background: var(--bg-3); border: 1px solid var(--border-2);
+      border-radius: 10px; color: var(--fg-1);
+      font-size: 14px; font-family: inherit; outline: none;
+      transition: all 200ms cubic-bezier(0.22,1,0.36,1);
+    }
+    .form-input::placeholder { color: var(--fg-4); }
+    .form-input:focus { border-color: #6366F1; box-shadow: 0 0 0 3px rgba(99,102,241,0.18); }
+
+    .form-hint { font-size: 12px; color: var(--fg-4); }
+
+    .form-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .remember { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--fg-3); cursor: pointer; }
+    .remember input[type="checkbox"] { accent-color: #6366F1; }
+    .forgot { font-size: 13px; color: #818CF8; text-decoration: none; }
+    .forgot:hover { color: #C7CBFE; }
+
+    .btn-submit {
+      width: 100%; padding: 12px;
+      background: linear-gradient(135deg, #6366F1, #4F46E5);
+      color: #fff; border: none; border-radius: 10px;
+      font-size: 14px; font-weight: 600; font-family: inherit;
+      cursor: pointer;
+      box-shadow: 0 0 0 1px rgba(99,102,241,0.4), 0 8px 24px rgba(99,102,241,0.30);
+      transition: all 200ms cubic-bezier(0.22,1,0.36,1);
+      margin-top: 8px;
+    }
+    .btn-submit:hover { box-shadow: 0 0 0 1px rgba(99,102,241,0.5), 0 8px 32px rgba(99,102,241,0.45); }
+    .btn-submit:active { transform: scale(0.99); }
+
+    .divider-or {
+      display: flex; align-items: center; gap: 12px;
+      font-size: 12px; color: var(--fg-4);
+      margin: 20px 0;
+    }
+    .divider-or::before, .divider-or::after {
+      content:""; flex:1; height:1px; background: var(--border-1);
+    }
+
+    .btn-google {
+      width: 100%; padding: 11px;
+      background: var(--bg-3); color: var(--fg-1);
+      border: 1px solid var(--border-2); border-radius: 10px;
+      font-size: 13px; font-weight: 500; font-family: inherit;
+      cursor: pointer; display: flex; align-items: center;
+      justify-content: center; gap: 10px;
+      transition: all 200ms cubic-bezier(0.22,1,0.36,1);
+    }
+    .btn-google:hover { background: var(--bg-5); border-color: var(--border-3); }
+
+    /* footer */
+    .auth-footer { text-align: center; margin-top: 24px; font-size: 13px; color: var(--fg-4); }
+    .auth-footer a { color: #818CF8; text-decoration: none; }
+    .auth-footer a:hover { color: #C7CBFE; }
+
+    /* hidden */
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* error */
+    .form-error { font-size: 12px; color: #FB7185; margin-top: 4px; display: none; }
+    .form-error.show { display: block; }
+
+    /* strength bar */
+    .strength-bar { display: flex; gap: 4px; margin-top: 8px; }
+    .strength-bar span { flex:1; height:3px; border-radius:2px; background: var(--bg-5); transition: background 300ms; }
+    .strength-text { font-size: 11px; color: var(--fg-4); margin-top: 4px; }
+
+    /* bg glow */
+    .bg-glow-1 { position: fixed; top: -200px; right: -200px; width: 600px; height: 600px; border-radius: 50%; background: radial-gradient(circle, rgba(99,102,241,0.08) 0%, transparent 70%); pointer-events: none; }
+    .bg-glow-2 { position: fixed; bottom: -200px; left: -200px; width: 500px; height: 500px; border-radius: 50%; background: radial-gradient(circle, rgba(16,185,129,0.06) 0%, transparent 70%); pointer-events: none; }
+  </style>
+</head>
+<body>
+  <div class="bg-glow-1"></div>
+  <div class="bg-glow-2"></div>
+
+  <div class="auth-wrap">
+    <div class="auth-logo">
+      <div class="auth-logo-mark">
+        <svg viewBox="0 0 40 40" width="22" height="22" fill="none">
+          <g stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22 L20 13 L28 22 L20 31 Z"/>
+            <circle cx="12" cy="22" r="2.4" fill="#fff"/>
+            <circle cx="28" cy="22" r="2.4" fill="#fff"/>
+            <circle cx="20" cy="13" r="2.4" fill="#fff"/>
+            <circle cx="20" cy="31" r="2.4" fill="#10B981" stroke="#10B981"/>
+          </g>
+        </svg>
+      </div>
+      <div class="auth-logo-text">Study<span>Mind</span></div>
+    </div>
+
+    <div class="auth-card">
+      <div class="auth-tabs">
+        <div class="auth-tab active" data-tab="login">Sign in</div>
+        <div class="auth-tab" data-tab="register">Create account</div>
+      </div>
+
+      <!-- LOGIN -->
+      <div class="tab-content active" id="tab-login">
+        <p class="auth-sub">Welcome back. Your roadmap is waiting.</p>
+        <form id="login-form" novalidate>
+          <div class="form-group">
+            <label class="form-label">Email</label>
+            <div class="input-wrap">
+              <span class="input-icon"><svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></span>
+              <input class="form-input" type="email" id="login-email" placeholder="you@email.com" autocomplete="email"/>
+            </div>
+            <span class="form-error" id="login-email-err">Enter a valid email address.</span>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Password</label>
+            <div class="input-wrap">
+              <span class="input-icon"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+              <input class="form-input" type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password"/>
+            </div>
+            <span class="form-error" id="login-pass-err">Password is required.</span>
+          </div>
+          <div class="form-row">
+            <label class="remember"><input type="checkbox"/> Keep me signed in</label>
+            <a href="#" class="forgot">Forgot password?</a>
+          </div>
+          <button type="submit" class="btn-submit">Sign in to StudyMind</button>
+        </form>
+        <div class="divider-or">or continue with</div>
+        <button class="btn-google">
+          <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.32-8.16 2.32-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+          Continue with Google
+        </button>
+      </div>
+
+      <!-- REGISTER -->
+      <div class="tab-content" id="tab-register">
+        <p class="auth-sub">Create your account and start your ENEM prep.</p>
+        <form id="register-form" novalidate>
+          <div class="form-group">
+            <label class="form-label">Full name</label>
+            <div class="input-wrap">
+              <span class="input-icon"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+              <input class="form-input" type="text" id="reg-name" placeholder="Your name" autocomplete="name"/>
+            </div>
+            <span class="form-error" id="reg-name-err">Name is required.</span>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Email</label>
+            <div class="input-wrap">
+              <span class="input-icon"><svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></span>
+              <input class="form-input" type="email" id="reg-email" placeholder="you@email.com" autocomplete="email"/>
+            </div>
+            <span class="form-error" id="reg-email-err">Enter a valid email address.</span>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Password</label>
+            <div class="input-wrap">
+              <span class="input-icon"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+              <input class="form-input" type="password" id="reg-pass" placeholder="Min. 8 characters" autocomplete="new-password"/>
+            </div>
+            <div class="strength-bar"><span id="s1"></span><span id="s2"></span><span id="s3"></span><span id="s4"></span></div>
+            <span class="strength-text" id="strength-text"></span>
+            <span class="form-error" id="reg-pass-err">Password must be at least 8 characters.</span>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Target exam</label>
+            <div class="input-wrap">
+              <span class="input-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg></span>
+              <select class="form-input" id="reg-exam" style="padding-left:40px">
+                <option value="">Select your exam</option>
+                <option value="enem">ENEM 2026</option>
+                <option value="fuvest">FUVEST 2026</option>
+                <option value="unicamp">UNICAMP 2026</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+          </div>
+          <button type="submit" class="btn-submit">Create account</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="auth-footer">
+      By continuing you agree to our <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a>.
+    </div>
+  </div>
+
+  <script>
+    // Tab switching
+    document.querySelectorAll('.auth-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.auth-tab, .tab-content').forEach(el => el.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+      });
+    });
+
+    // Password strength
+    const passInput = document.getElementById('reg-pass');
+    if (passInput) {
+      passInput.addEventListener('input', () => {
+        const val = passInput.value;
+        const bars = [document.getElementById('s1'), document.getElementById('s2'), document.getElementById('s3'), document.getElementById('s4')];
+        const txt = document.getElementById('strength-text');
+        let score = 0;
+        if (val.length >= 8) score++;
+        if (/[A-Z]/.test(val)) score++;
+        if (/[0-9]/.test(val)) score++;
+        if (/[^A-Za-z0-9]/.test(val)) score++;
+        const colors = ['#EF4444','#F59E0B','#3B82F6','#10B981'];
+        const labels = ['Weak','Fair','Good','Strong'];
+        bars.forEach((b, i) => b.style.background = i < score ? colors[score-1] : 'var(--bg-5)');
+        txt.textContent = val.length ? labels[score-1] || '' : '';
+        txt.style.color = score > 0 ? colors[score-1] : 'var(--fg-4)';
+      });
+    }
+
+    // Login form
+    document.getElementById('login-form').addEventListener('submit', e => {
+      e.preventDefault();
+      const email = document.getElementById('login-email').value;
+      const pass  = document.getElementById('login-pass').value;
+      let ok = true;
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        document.getElementById('login-email-err').classList.add('show'); ok = false;
+      } else { document.getElementById('login-email-err').classList.remove('show'); }
+      if (!pass) {
+        document.getElementById('login-pass-err').classList.add('show'); ok = false;
+      } else { document.getElementById('login-pass-err').classList.remove('show'); }
+      if (ok) window.location.href = '../index.html';
+    });
+
+    // Register form
+    document.getElementById('register-form').addEventListener('submit', e => {
+      e.preventDefault();
+      const name  = document.getElementById('reg-name').value;
+      const email = document.getElementById('reg-email').value;
+      const pass  = document.getElementById('reg-pass').value;
+      let ok = true;
+      if (!name) { document.getElementById('reg-name-err').classList.add('show'); ok=false; }
+      else document.getElementById('reg-name-err').classList.remove('show');
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { document.getElementById('reg-email-err').classList.add('show'); ok=false; }
+      else document.getElementById('reg-email-err').classList.remove('show');
+      if (!pass || pass.length < 8) { document.getElementById('reg-pass-err').classList.add('show'); ok=false; }
+      else document.getElementById('reg-pass-err').classList.remove('show');
+      if (ok) window.location.href = '../index.html';
+    });
+  </script>
+</body>
+</html>

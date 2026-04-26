@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=1280"/>
+  <title>StudyMind — Roadmap</title>
+  <link rel="stylesheet" href="../css/base.css"/>
+</head>
+<body>
+<div id="app" class="app"></div>
+<div id="toast-container"></div>
+<script src="../js/shared.js"></script>
+<script>
+function render() {
+  const s = State;
+  document.getElementById('app').innerHTML = `
+    ${buildSidebar('roadmap')}
+    <div>
+      ${buildTopbar('Workspace','Roadmap')}
+      <main class="main page-enter">
+
+        <div class="section__head">
+          <div>
+            <h1 class="section__title">${icon('route',20)} ENEM 2026 Roadmap</h1>
+            <p class="section__sub">Personalized 12-week plan · updated based on your performance</p>
+          </div>
+          <div class="row">
+            <button class="btn btn--ghost btn--sm">${icon('filter',12)} Filter</button>
+            <button class="btn btn--secondary btn--sm">${icon('refresh-cw',12)} Recalibrate</button>
+            <button class="btn btn--primary btn--sm">${icon('plus',12)} Add topic</button>
+          </div>
+        </div>
+
+        <!-- PROGRESS OVERVIEW -->
+        <div class="grid-4" style="margin-top:20px">
+          <div class="card stat card--hover">
+            <div class="stat__head"><div class="stat__icon stat__icon--em">${icon('check-circle',16)}</div></div>
+            <div class="stat__label">Overall progress</div>
+            <div class="stat__value">62<span class="stat__value-unit">%</span></div>
+            <div class="stat__sub">Across all 6 subjects</div>
+          </div>
+          <div class="card stat card--hover">
+            <div class="stat__head"><div class="stat__icon stat__icon--am">${icon('clock',16)}</div></div>
+            <div class="stat__label">Weeks remaining</div>
+            <div class="stat__value">8</div>
+            <div class="stat__sub">ENEM: Nov 2, 2026</div>
+          </div>
+          <div class="card stat card--hover">
+            <div class="stat__head"><div class="stat__icon">${icon('check-square',16)}</div></div>
+            <div class="stat__label">Topics covered</div>
+            <div class="stat__value">24<span class="stat__value-unit">/38</span></div>
+            <div class="stat__sub">14 remaining</div>
+          </div>
+          <div class="card stat card--hover">
+            <div class="stat__head"><div class="stat__icon stat__icon--rs">${icon('alert',16)}</div></div>
+            <div class="stat__label">At risk</div>
+            <div class="stat__value">1</div>
+            <div class="stat__sub">Chemistry · needs attention</div>
+          </div>
+        </div>
+
+        <!-- WEEK TIMELINE HEADER -->
+        <section class="section">
+          <div class="card card--padded">
+            <div class="card__header">
+              <div>
+                <div class="card__title">${icon('route',16)} Subject roadmap</div>
+                <div class="card__sub">12-week timeline · click a week to see details</div>
+              </div>
+              <div class="row">
+                <span class="badge badge--emerald">On track</span>
+                <span class="badge badge--amber">Lagging</span>
+                <span class="badge badge--rose">At risk</span>
+              </div>
+            </div>
+
+            <!-- Timeline grid header -->
+            <div class="rm-grid rm-grid--header">
+              <div class="rm-grid__subject-col"></div>
+              ${Array.from({length:12},(_,i)=>`<div class="rm-grid__week">W${i+1}</div>`).join('')}
+              <div class="rm-grid__pct-col">Progress</div>
+            </div>
+
+            <!-- Subject rows -->
+            ${s.subjects.map(subj => {
+              const rd = s.roadmap.find(r => r.subject === subj.name) || {};
+              return `
+              <div class="rm-subject-row">
+                <div class="rm-subject-info">
+                  <div class="roadmap__icon" style="background:linear-gradient(135deg,${subj.color},${subj.color2})">${subj.init}</div>
+                  <div>
+                    <div class="rm-subject-name">${subj.name}</div>
+                    <div class="rm-subject-topic">${rd.current || subj.topic}</div>
+                  </div>
+                </div>
+                <div class="rm-weeks">
+                  ${Array.from({length:12},(_,i) => {
+                    const done = rd.weeks && rd.weeks[i] ? rd.weeks[i].done : false;
+                    const isCurrent = rd.weeks && rd.weeks[i] && !done && (i === 0 || (rd.weeks[i-1] && rd.weeks[i-1].done));
+                    return `<div class="rm-week ${done ? 'rm-week--done' : ''} ${isCurrent ? 'rm-week--current' : ''}"
+                              style="${done ? `background:${subj.color}22;border-color:${subj.color}44` : ''} ${isCurrent ? `background:${subj.color}33;border-color:${subj.color};box-shadow:0 0 12px ${subj.color}44` : ''}"
+                              title="Week ${i+1}${done?' · Done':isCurrent?' · In progress':''}">
+                              ${done ? `<svg width="10" height="10" viewBox="0 0 24 24" stroke="${subj.color}" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>` : isCurrent ? `<span class="rm-week-dot" style="background:${subj.color}"></span>` : ''}
+                            </div>`;
+                  }).join('')}
+                </div>
+                <div class="rm-pct-col">
+                  <div class="rm-pct-num">${subj.pct}%</div>
+                  <div class="progress-bar" style="width:64px">
+                    <div class="progress-bar__fill" style="width:${subj.pct}%;background:linear-gradient(90deg,${subj.color},${subj.color2})"></div>
+                  </div>
+                </div>
+              </div>`;
+            }).join('')}
+          </div>
+        </section>
+
+        <!-- DETAILED CARDS -->
+        <section class="section">
+          <div class="section__head">
+            <div>
+              <h2 class="section__title">${icon('book',18)} Subject details</h2>
+              <p class="section__sub">Current topic, next steps, and performance per subject</p>
+            </div>
+          </div>
+          <div class="grid-3">
+            ${s.subjects.map(subj => {
+              const rd = s.roadmap.find(r => r.subject === subj.name) || {};
+              const statusColor = subj.status === 'track' ? 'emerald' : subj.status === 'lag' ? 'amber' : 'rose';
+              return `
+              <div class="card card--padded card--hover" style="cursor:pointer;transition:all 200ms var(--ease-out)" onclick="showToast('${subj.name} details — coming soon')">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+                  <div style="display:flex;align-items:center;gap:12px">
+                    <div class="roadmap__icon" style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,${subj.color},${subj.color2})">${subj.init}</div>
+                    <div>
+                      <div style="font-size:15px;font-weight:600;color:var(--fg-1)">${subj.name}</div>
+                      <span class="badge badge--${statusColor}">${subj.status === 'track' ? 'On track' : subj.status === 'lag' ? 'Lagging' : 'At risk'}</span>
+                    </div>
+                  </div>
+                  <div style="font-family:var(--font-mono);font-size:20px;font-weight:600;color:var(--fg-1)">${subj.pct}%</div>
+                </div>
+                <div class="progress-bar" style="margin-bottom:16px">
+                  <div class="progress-bar__fill" style="width:${subj.pct}%;background:linear-gradient(90deg,${subj.color},${subj.color2});box-shadow:0 0 12px ${subj.color}44"></div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:8px">
+                  <div style="display:flex;justify-content:space-between;font-size:12px">
+                    <span style="color:var(--fg-4)">Current topic</span>
+                    <span style="color:var(--fg-2);font-weight:500">${rd.current || subj.topic}</span>
+                  </div>
+                  <div style="display:flex;justify-content:space-between;font-size:12px">
+                    <span style="color:var(--fg-4)">Next topic</span>
+                    <span style="color:var(--fg-4)">${rd.next || '—'}</span>
+                  </div>
+                  <div style="display:flex;justify-content:space-between;font-size:12px">
+                    <span style="color:var(--fg-4)">Accuracy</span>
+                    <span style="color:${subj.color};font-weight:500">${subj.accuracy}%</span>
+                  </div>
+                </div>
+              </div>`;
+            }).join('')}
+          </div>
+        </section>
+
+        ${buildTechStrip()}
+      </main>
+    </div>`;
+  initModals();
+}
+
+render();
+</script>
+
+<style>
+.rm-grid { display: grid; grid-template-columns: 200px repeat(12, 1fr) 80px; gap: 4px; align-items: center; }
+.rm-grid--header { margin-bottom: 8px; padding-bottom: 12px; border-bottom: 1px solid var(--border-1); }
+.rm-grid__week { text-align: center; font-family: var(--font-mono); font-size: 11px; color: var(--fg-4); }
+.rm-grid__pct-col { text-align: center; font-size: 11px; color: var(--fg-4); text-transform: uppercase; letter-spacing: 0.08em; }
+
+.rm-subject-row {
+  display: grid; grid-template-columns: 200px 1fr 80px;
+  align-items: center; gap: 16px;
+  padding: 10px 0; border-bottom: 1px solid var(--border-1);
+  transition: background var(--dur-base);
+}
+.rm-subject-row:last-child { border-bottom: 0; }
+.rm-subject-row:hover { background: rgba(255,255,255,0.012); border-radius: var(--r-md); }
+.rm-subject-info { display: flex; align-items: center; gap: 10px; }
+.rm-subject-name  { font-size: 14px; font-weight: 500; color: var(--fg-1); }
+.rm-subject-topic { font-size: 11px; color: var(--fg-4); margin-top: 2px; }
+.rm-weeks { display: flex; gap: 4px; }
+.rm-week {
+  flex: 1; height: 28px; border-radius: 6px;
+  border: 1px solid var(--border-1);
+  background: var(--bg-3);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all var(--dur-base) var(--ease-out);
+}
+.rm-week:hover { border-color: var(--border-3); background: var(--bg-5); }
+.rm-week-dot { width: 6px; height: 6px; border-radius: 50%; }
+.rm-pct-col { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.rm-pct-num { font-family: var(--font-mono); font-size: 13px; font-weight: 500; color: var(--fg-1); }
+</style>
+</body>
+</html>

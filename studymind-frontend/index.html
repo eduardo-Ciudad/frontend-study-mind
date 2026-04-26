@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=1280"/>
+  <title>StudyMind — Dashboard</title>
+  <link rel="stylesheet" href="css/base.css"/>
+</head>
+<body>
+<div id="app" class="app"></div>
+<div id="toast-container"></div>
+
+<script src="js/shared.js"></script>
+<script>
+// ── Render ───────────────────────────────────────────────────
+function render() {
+  const s = State;
+  const pending = s.tasks.filter(t => !t.done).length;
+
+  document.getElementById('app').innerHTML = `
+    ${buildSidebar('dashboard')}
+    <div>
+      ${buildTopbar('Workspace','Dashboard')}
+      <main class="main page-enter">
+
+        <!-- HERO -->
+        <section class="hero">
+          <div class="hero-inner">
+            <div>
+              <span class="hero-eyebrow">${icon('sparkles',12)} AI-powered personalized learning</span>
+              <h1 class="hero-title">Your <b>Study Roadmap</b></h1>
+              <p class="hero-sub">Today's plan is calibrated to your weakest topics from the last 7 days. Stay on the path — you're 8 days from your ENEM target.</p>
+              <div class="row" style="gap:10px;margin-top:24px">
+                <button class="btn btn--primary" onclick="showToast('Session started!')">
+                  ${icon('play',14)} Start today's session
+                </button>
+                <a href="pages/roadmap.html" class="btn btn--secondary">
+                  ${icon('route',14)} View full roadmap
+                </a>
+              </div>
+            </div>
+            <div class="hero-today-card">
+              <div class="hero-today-label">${icon('sparkles',12)} Generated for today</div>
+              <div style="font-size:14px;color:var(--fg-1);font-weight:500;margin-bottom:4px">3 focused tasks · ~2h 15m</div>
+              <div style="font-size:12px;color:var(--fg-3);margin-bottom:14px">Tuned to your last 5 quiz results</div>
+              ${['Algebra — Quadratic functions review|45m|ind','Chemistry — Stoichiometry drills|50m|em','Portuguese — Reading comprehension|40m|ind']
+                .map(r => { const [t,m,c] = r.split('|'); return `<div class="hero-task-row"><span class="htdot htdot--${c}"></span><span style="flex:1;color:var(--fg-1)">${t}</span><span style="font-family:var(--font-mono);font-size:11px;color:var(--fg-4)">${m}</span></div>`; }).join('')}
+            </div>
+          </div>
+        </section>
+
+        <!-- STATS -->
+        <section class="section">
+          <div class="grid-stats">
+            <div class="card stat card--hover">
+              <div class="stat__head">
+                <div class="stat__icon stat__icon--am">${icon('flame',16)}</div>
+                <span class="stat__delta">↑ +3</span>
+              </div>
+              <div class="stat__label">Study streak</div>
+              <div class="stat__value">12<span class="stat__value-unit"> days</span></div>
+              <div class="stat__sub">Personal best: 18 days</div>
+            </div>
+            <div class="card stat card--hover">
+              <div class="stat__head">
+                <div class="stat__icon stat__icon--em">${icon('check-circle',16)}</div>
+                <span class="stat__delta">↑ +22</span>
+              </div>
+              <div class="stat__label">Tasks completed</div>
+              <div class="stat__value">148</div>
+              <div class="stat__sub">This month · target 180</div>
+            </div>
+            <div class="card stat card--hover">
+              <div class="stat__head">
+                <div class="stat__icon">${icon('target',16)}</div>
+                <span class="stat__delta">↑ +4.2%</span>
+              </div>
+              <div class="stat__label">Accuracy</div>
+              <div class="stat__value">76<span class="stat__value-unit">%</span></div>
+              <div class="stat__sub">Last 7 days, all subjects</div>
+            </div>
+            <div class="card stat card--hover">
+              <div class="stat__head">
+                <div class="stat__icon stat__icon--rs">${icon('alert',16)}</div>
+                <span class="stat__delta stat__delta--down">↓ -8%</span>
+              </div>
+              <div class="stat__label">Weakest subject</div>
+              <div class="stat__value" style="font-size:22px">Chem</div>
+              <div class="stat__sub">Stoichiometry · 54% accuracy</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ROADMAP PREVIEW -->
+        <section class="section">
+          <div class="card card--padded">
+            <div class="card__header">
+              <div>
+                <div class="card__title">${icon('route',16)} Roadmap progress</div>
+                <div class="card__sub">By subject · ENEM 2026 prep · updated 2h ago</div>
+              </div>
+              <a href="pages/roadmap.html" class="btn btn--ghost btn--sm">View all ${icon('arrow-right',12)}</a>
+            </div>
+            ${buildRoadmapRows(s.subjects)}
+          </div>
+        </section>
+
+        <!-- PERF + BREAKDOWN -->
+        <section class="section">
+          <div class="grid-2">
+            <div class="card card--padded">
+              <div class="card__header">
+                <div>
+                  <div class="card__title">${icon('trending',16)} Performance over time</div>
+                  <div class="card__sub">Last 7 days · accuracy & daily target completion</div>
+                </div>
+                <div class="row">
+                  <button class="btn btn--secondary btn--sm">7d</button>
+                  <button class="btn btn--ghost btn--sm">30d</button>
+                  <button class="btn btn--ghost btn--sm">90d</button>
+                </div>
+              </div>
+              <div style="height:220px;margin-top:8px">${buildPerfChart(s.performance.labels, s.performance.accuracy, s.performance.tasks)}</div>
+              <div style="display:flex;gap:16px;margin-top:12px;padding-top:12px;border-top:1px solid var(--border-1)">
+                <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--fg-3)"><span style="width:10px;height:10px;border-radius:3px;background:#818CF8;display:inline-block"></span>Accuracy %</div>
+                <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--fg-3)"><span style="width:10px;height:10px;border-radius:3px;background:#34D399;display:inline-block"></span>Daily target %</div>
+              </div>
+            </div>
+            <div class="card card--padded">
+              <div class="card__header">
+                <div>
+                  <div class="card__title">${icon('bar-chart',16)} Accuracy by subject</div>
+                  <div class="card__sub">Rolling 30-day average</div>
+                </div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:10px">${buildSubjectBreakdown(s.subjects)}</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- TASKS + AI -->
+        <section class="section">
+          <div class="grid-2">
+            <div class="card card--padded">
+              <div class="card__header">
+                <div>
+                  <div class="card__title">${icon('check-square',16)} Today's tasks</div>
+                  <div class="card__sub">${pending} pending · ${s.tasks.length - pending} done</div>
+                </div>
+                <a href="pages/tasks.html" class="btn btn--secondary btn--sm">${icon('arrow-right',12)} See all</a>
+              </div>
+              <div id="task-list"></div>
+            </div>
+            <div class="card ai-panel card--padded">
+              <div class="card__header">
+                <div>
+                  <div class="card__title" style="color:var(--fg-1)">${icon('sparkles',16)} AI insights</div>
+                  <div class="card__sub">Generated from your last 7 days of activity</div>
+                </div>
+                <button class="btn btn--ghost btn--sm" onclick="showToast('Insights refreshed!')">Refresh ${icon('refresh-cw',12)}</button>
+              </div>
+              ${[
+                { ico:'alert', text:'Focus more on Algebra — quadratic functions accuracy dropped to 58%.', meta:'Detected from 3 quizzes', action:'Open practice set' },
+                { ico:'rotate-ccw', text:'Review Chemistry basics — stoichiometry needs a refresher.', meta:'Last reviewed 14 days ago', action:'Start review' },
+                { ico:'zap', text:"You're 27% faster on Biology this week. Push the topic.", meta:'Trend: 7-day window', action:'Add advanced drills' },
+              ].map(m => `
+                <div class="ai-msg">
+                  <div class="ai-msg__icon">${icon(m.ico,14)}</div>
+                  <div class="ai-msg__body">
+                    <div class="ai-msg__text">${m.text}</div>
+                    <div class="ai-msg__meta"><b>StudyMind AI</b> · ${m.meta}</div>
+                    <a class="ai-msg__action" onclick="showToast('Opening: ${m.action}')">${m.action} ${icon('arrow-right',12)}</a>
+                  </div>
+                </div>`).join('')}
+            </div>
+          </div>
+        </section>
+
+        ${buildTechStrip()}
+      </main>
+    </div>`;
+
+  renderTasks();
+}
+
+function renderTasks() {
+  const pLabel = { high:'High', med:'Medium', low:'Low' };
+  const tasks = State.tasks.slice(0, 5);
+  document.getElementById('task-list').innerHTML = tasks.map(t => `
+    <div class="task${t.done ? ' task--done':''}" onclick="toggleTask(${t.id})">
+      <div class="task__check">${icon('check',10)}</div>
+      <div>
+        <div class="task__title">${t.title}</div>
+        <div class="task__sub">${t.sub}</div>
+      </div>
+      <span class="badge badge--${t.priority === 'high' ? 'rose' : t.priority === 'med' ? 'amber' : 'muted'}">${pLabel[t.priority]}</span>
+      <div class="task__time">${t.time}</div>
+    </div>`).join('');
+}
+
+function toggleTask(id) {
+  const t = State.tasks.find(t => t.id === id);
+  if (t) {
+    t.done = !t.done;
+    showToast(t.done ? 'Task completed!' : 'Task reopened');
+    renderTasks();
+  }
+}
+
+render();
+</script>
+
+<style>
+.hero {
+  border-radius: var(--r-3xl); padding: 32px; position: relative; overflow: hidden;
+  border: 1px solid rgba(99,102,241,0.18);
+  background: radial-gradient(600px 300px at 100% 0%, rgba(99,102,241,0.18), transparent 60%),
+              radial-gradient(500px 280px at 0% 100%, rgba(16,185,129,0.10), transparent 60%),
+              linear-gradient(180deg,#141B33 0%,#0F1626 100%);
+  box-shadow: var(--shadow-lg), var(--inner-card);
+}
+.hero::after {
+  content:""; position:absolute; inset:0;
+  background-image: var(--pattern-dots); background-size: var(--pattern-dots-size);
+  opacity:0.5; pointer-events:none;
+  mask-image: radial-gradient(ellipse at top right, black 0%, transparent 70%);
+}
+.hero-inner { position:relative; z-index:1; display:grid; grid-template-columns:1.4fr 1fr; gap:32px; align-items:center; }
+.hero-eyebrow {
+  display:inline-flex; align-items:center; gap:8px;
+  font-size:12px; font-weight:500; color:var(--indigo-200);
+  background:rgba(99,102,241,0.12); border:1px solid rgba(99,102,241,0.25);
+  padding:6px 12px; border-radius:var(--r-pill); margin-bottom:16px;
+}
+.hero-eyebrow .icon { width:12px; height:12px; }
+.hero-title { font-size:38px; font-weight:600; letter-spacing:-0.025em; color:var(--fg-1); line-height:1.1; margin:0 0 12px; }
+.hero-title b { background:linear-gradient(135deg,#818CF8 0%,#34D399 100%); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.hero-sub { font-size:15px; color:var(--fg-3); max-width:500px; }
+.hero-today-card {
+  background:rgba(11,15,26,0.55); backdrop-filter:blur(12px);
+  border:1px solid var(--border-2); border-radius:var(--r-xl); padding:18px; position:relative;
+}
+.hero-today-label { display:flex; align-items:center; gap:8px; font-size:11px; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; color:var(--indigo-400); margin-bottom:12px; }
+.hero-today-label .icon { width:12px; height:12px; }
+.hero-task-row { display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:10px; background:rgba(255,255,255,0.02); border:1px solid var(--border-1); font-size:13px; margin-bottom:6px; }
+.hero-task-row:last-child { margin-bottom:0; }
+.htdot { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
+.htdot--ind { background:var(--indigo-500); box-shadow:0 0 8px var(--indigo-glow); }
+.htdot--em  { background:var(--emerald-500); box-shadow:0 0 8px var(--emerald-glow); }
+</style>
+</body>
+</html>
