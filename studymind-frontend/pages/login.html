@@ -86,6 +86,22 @@
     .form-input::placeholder { color: var(--fg-4); }
     .form-input:focus { border-color: #6366F1; box-shadow: 0 0 0 3px rgba(99,102,241,0.18); }
 
+    /* Fix browser autofill overriding background/text color */
+    .form-input:-webkit-autofill,
+    .form-input:-webkit-autofill:hover,
+    .form-input:-webkit-autofill:focus,
+    .form-input:-webkit-autofill:active {
+      -webkit-box-shadow: 0 0 0 999px #131A2E inset !important;
+      -webkit-text-fill-color: #F8FAFC !important;
+      caret-color: #F8FAFC;
+      border-color: var(--border-2);
+      transition: background-color 9999s ease-in-out 0s;
+    }
+    .form-input:-webkit-autofill:focus {
+      border-color: #6366F1 !important;
+      -webkit-box-shadow: 0 0 0 999px #131A2E inset, 0 0 0 3px rgba(99,102,241,0.18) !important;
+    }
+
     .form-hint { font-size: 12px; color: var(--fg-4); }
 
     .form-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
