@@ -134,12 +134,15 @@ function initModals() {
 
 // ── Sidebar builder ──────────────────────────────────────────
 function buildSidebar(activeId) {
+  const inPages = window.location.pathname.includes('/pages/');
+  const root = inPages ? '../' : '';
+  const pages = inPages ? '' : 'pages/';
   const navItems = [
-    { id:'dashboard',    label:'Dashboard',   ico:'dashboard',    href:'index.html' },
-    { id:'roadmap',      label:'Roadmap',     ico:'route',        href:'roadmap.html',  badge:'12' },
-    { id:'subjects',     label:'Subjects',    ico:'book',         href:'subjects.html' },
-    { id:'tasks',        label:'Tasks',       ico:'check-square', href:'tasks.html',    badge:'5' },
-    { id:'performance',  label:'Performance', ico:'trending',     href:'performance.html' },
+    { id:'dashboard',    label:'Dashboard',   ico:'dashboard',    href:`${root}index.html` },
+    { id:'roadmap',      label:'Roadmap',     ico:'route',        href:`${pages}roadmap.html`,  badge:'12' },
+    { id:'subjects',     label:'Subjects',    ico:'book',         href:`${pages}subjects.html` },
+    { id:'tasks',        label:'Tasks',       ico:'check-square', href:`${pages}tasks.html`,    badge:'5' },
+    { id:'performance',  label:'Performance', ico:'trending',     href:`${pages}performance.html` },
   ];
   const settingsItems = [
     { id:'settings', label:'Settings', ico:'settings', href:'#' },
