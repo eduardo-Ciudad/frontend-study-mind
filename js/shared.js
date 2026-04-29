@@ -40,6 +40,7 @@ const Icons = {
   'check-circle':`<svg class="icon" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`,
   clock:        `<svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
   'log-out':    `<svg class="icon" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>`,
+  menu:         `<svg class="icon" viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>`,
 };
 
 function icon(name, size = 18) {
@@ -132,6 +133,28 @@ function initModals() {
   });
 }
 
+// ── Drawer toggle ────────────────────────────────────────────
+function initDrawer() {
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
+  const btn     = document.getElementById('hamburger-btn');
+  if (!btn || !sidebar || !overlay) return;
+  btn.addEventListener('click', () => {
+    sidebar.classList.toggle('open');
+    overlay.classList.toggle('open');
+  });
+  overlay.addEventListener('click', () => {
+    sidebar.classList.remove('open');
+    overlay.classList.remove('open');
+  });
+  window.addEventListener('resize', () => {
+    if (window.innerWidth > 900) {
+      sidebar.classList.remove('open');
+      overlay.classList.remove('open');
+    }
+  }, { passive: true });
+}
+
 // ── Sidebar builder ──────────────────────────────────────────
 function buildSidebar(activeId) {
   const inPages = window.location.pathname.includes('/pages/');
@@ -157,7 +180,8 @@ function buildSidebar(activeId) {
     </a>`).join('');
 
   return `
-    <aside class="sidebar">
+    <div id="sidebar-overlay" class="sidebar-overlay"></div>
+    <aside id="sidebar" class="sidebar">
       <div class="sidebar__logo">
         <div class="sidebar__logo-mark">
           <svg viewBox="0 0 40 40" width="20" height="20" fill="none">
@@ -192,6 +216,9 @@ function buildSidebar(activeId) {
 function buildTopbar(section, page) {
   return `
     <header class="topbar">
+      <button class="topbar__hamburger" id="hamburger-btn" aria-label="Menu">
+        ${icon('menu', 20)}
+      </button>
       <div class="topbar__breadcrumb">
         <span>Workspace</span>
         ${icon('chevron-right', 14)}
