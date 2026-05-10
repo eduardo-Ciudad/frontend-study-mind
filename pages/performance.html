@@ -10,8 +10,12 @@
 <body>
 <div id="app" class="app"></div>
 <div id="toast-container"></div>
+<script src="../js/api.js"></script>
+<script src="../js/auth.js"></script>
 <script src="../js/shared.js"></script>
 <script>
+checkAuth();
+
 const periods = {
   '7d':  { labels:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'], acc:[62,65,68,64,72,75,76], tasks:[40,55,50,70,60,75,82] },
   '30d': { labels:['W1','W2','W3','W4','W5','W6','W7','W8'], acc:[58,61,60,65,68,70,73,76], tasks:[35,42,50,55,58,62,68,74] },
@@ -82,6 +86,33 @@ function setPeriod(p) {
 
 function render() {
   const s = State;
+
+  // KPI from dashboard API
+  const totalRespostas = _dashData ? _dashData.totalRespostas : '—';
+  const taxaGeral      = _dashData ? Math.round(_dashData.taxaAcertoGeral * 100) + '%' : '—%';
+  const totalAcertos   = _dashData ? _dashData.totalAcertos : '—';
+
+  // AI insights from recommendation API
+  const insightCards = [];
+  if (_recomData) {
+    if (_recomData.mensagemMotivacional) {
+      insightCards.push({ ico:'flame', text:_recomData.mensagemMotivacional, meta:'Motivação · StudyMind AI', color:'#FBBF24' });
+    }
+    (_recomData.topicosPrioritarios || []).slice(0,2).forEach(t => {
+      insightCards.push({ ico:'alert', text:`Priorize: ${t.topicoNome || t.nome} (${t.materiaNome || ''})`, meta:'Tópico prioritário', color:'#FB7185' });
+    });
+    (_recomData.dicasPraticas || []).slice(0, 3 - insightCards.length).forEach(d => {
+      insightCards.push({ ico:'zap', text:d, meta:'Dica prática · StudyMind AI', color:'var(--emerald-400)' });
+    });
+  }
+  if (!insightCards.length) {
+    insightCards.push(
+      { ico:'zap',   text:"Keep studying consistently to improve your accuracy.",    meta:'StudyMind AI', color:'var(--emerald-400)' },
+      { ico:'alert', text:'Focus on topics with low accuracy rates.',                meta:'StudyMind AI', color:'#FB7185' },
+      { ico:'flame', text:'Track your progress daily for best results.',             meta:'StudyMind AI', color:'#FBBF24' }
+    );
+  }
+
   document.getElementById('app').innerHTML = `
     ${buildSidebar('performance')}
     <div>
@@ -99,28 +130,28 @@ function render() {
         <!-- Top stats -->
         <div class="grid-4" style="margin-top:20px">
           <div class="card stat card--hover">
-            <div class="stat__head"><div class="stat__icon stat__icon--am">${icon('flame',16)}</div><span class="stat__delta">↑ +3</span></div>
-            <div class="stat__label">Current streak</div>
-            <div class="stat__value">12<span class="stat__value-unit"> days</span></div>
-            <div class="stat__sub">Personal best: 18 days</div>
+            <div class="stat__head"><div class="stat__icon stat__icon--am">${icon('flame',16)}</div></div>
+            <div class="stat__label">Total respostas</div>
+            <div class="stat__value">${totalRespostas}</div>
+            <div class="stat__sub">Todas as matérias</div>
           </div>
           <div class="card stat card--hover">
-            <div class="stat__head"><div class="stat__icon">${icon('target',16)}</div><span class="stat__delta">↑ +4.2%</span></div>
-            <div class="stat__label">Overall accuracy</div>
-            <div class="stat__value">76<span class="stat__value-unit">%</span></div>
-            <div class="stat__sub">7-day rolling average</div>
+            <div class="stat__head"><div class="stat__icon">${icon('target',16)}</div></div>
+            <div class="stat__label">Taxa de acerto</div>
+            <div class="stat__value">${taxaGeral}</div>
+            <div class="stat__sub">Média geral</div>
           </div>
           <div class="card stat card--hover">
-            <div class="stat__head"><div class="stat__icon stat__icon--em">${icon('check-circle',16)}</div><span class="stat__delta">↑ +22</span></div>
-            <div class="stat__label">Tasks this month</div>
-            <div class="stat__value">148</div>
-            <div class="stat__sub">Target: 180</div>
+            <div class="stat__head"><div class="stat__icon stat__icon--em">${icon('check-circle',16)}</div></div>
+            <div class="stat__label">Total acertos</div>
+            <div class="stat__value">${totalAcertos}</div>
+            <div class="stat__sub">Questões corretas</div>
           </div>
           <div class="card stat card--hover">
-            <div class="stat__head"><div class="stat__icon stat__icon--sky">${icon('clock',16)}</div></div>
-            <div class="stat__label">Study time</div>
-            <div class="stat__value">42<span class="stat__value-unit">h</span></div>
-            <div class="stat__sub">This month · avg 1.4h/day</div>
+            <div class="stat__head"><div class="stat__icon stat__icon--sky">${icon('bar-chart',16)}</div></div>
+            <div class="stat__label">Matérias analisadas</div>
+            <div class="stat__value">${s.subjects.length || '—'}</div>
+            <div class="stat__sub">Com dados de diagnóstico</div>
           </div>
         </div>
 
@@ -151,7 +182,7 @@ function render() {
               <div class="card__header">
                 <div>
                   <div class="card__title">${icon('bar-chart',16)} By subject</div>
-                  <div class="card__sub">30-day accuracy per subject</div>
+                  <div class="card__sub">Accuracy from diagnostics</div>
                 </div>
               </div>
               <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:20px">
@@ -180,13 +211,19 @@ function render() {
                   <div class="card__sub">Balanced coverage view</div>
                 </div>
               </div>
-              ${buildRadarSVG(s.subjects)}
+              ${s.subjects.length ? buildRadarSVG(s.subjects) : `<div class="empty-state">${icon('target',28)}<p>Sem dados de diagnóstico</p></div>`}
               <div class="divider" style="margin-top:16px"></div>
               <div class="card__header" style="margin-top:16px;margin-bottom:12px">
-                <div class="card__title">${icon('flame',16)} Study activity</div>
-                <div class="card__sub">Last 12 weeks</div>
+                <div class="card__title">${icon('bar-chart',16)} Diagnóstico por tópico</div>
+                <div class="card__sub">Taxa de acerto real por tópico</div>
               </div>
-              ${buildHeatmap()}
+              ${_diagData && _diagData.length ? _diagData.slice(0,8).map(d => `
+                <div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border-1);font-size:12px">
+                  <span style="flex:1;color:var(--fg-2)">${d.topicoNome || '—'}</span>
+                  <span style="color:var(--fg-4)">${d.materiaNome || ''}</span>
+                  <span style="font-family:var(--font-mono);color:var(--emerald-400);font-weight:500">${Math.round((d.taxaAcerto||0)*100)}%</span>
+                </div>`).join('')
+              : `<div style="color:var(--fg-4);font-size:12px;padding:12px 0">Sem dados de diagnóstico disponíveis.</div>`}
             </div>
           </div>
         </section>
@@ -197,16 +234,12 @@ function render() {
             <div class="card__header">
               <div>
                 <div class="card__title" style="color:var(--fg-1)">${icon('sparkles',16)} Performance insights</div>
-                <div class="card__sub">AI analysis of your last 30 days</div>
+                <div class="card__sub">AI analysis based on your diagnostic data</div>
               </div>
               <button class="btn btn--ghost btn--sm" onclick="showToast('Refreshed!')">Refresh ${icon('refresh-cw',12)}</button>
             </div>
             <div class="grid-3" style="gap:12px">
-              ${[
-                { ico:'zap', text:"Biology accuracy up 27% this week. You're building momentum — add advanced topics.", meta:'Trend: 7-day window', color:'var(--emerald-400)' },
-                { ico:'alert', text:'Chemistry at 54% — stoichiometry is pulling the average down. Prioritize for next 3 days.', meta:'Based on last 5 quizzes', color:'#FB7185' },
-                { ico:'flame', text:'12-day streak is your second best. One more day ties your record.', meta:'Streak data', color:'#FBBF24' },
-              ].map(m => `
+              ${insightCards.map(m => `
                 <div class="ai-msg" style="flex-direction:column;gap:10px">
                   <div style="display:flex;gap:10px;align-items:center">
                     <div class="ai-msg__icon" style="color:${m.color};background:${m.color}22;box-shadow:0 0 16px ${m.color}33;border:1px solid ${m.color}33">${icon(m.ico,14)}</div>
@@ -226,8 +259,70 @@ function render() {
   document.getElementById('perf-chart-wrap').innerHTML = buildPerfChart(d.labels, d.acc, d.tasks, 600, 200);
 }
 
-render();
-initDrawer();
+// ── API data ────────────────────────────────────────────────
+let _diagData  = null;
+let _dashData  = null;
+let _recomData = null;
+
+// Merge diagnostic data into State.subjects for builders
+function applyDiagnosticToSubjects() {
+  if (!_diagData || !Array.isArray(_diagData)) return;
+
+  // Group by materiaNome, average taxaAcerto
+  const byMateria = {};
+  _diagData.forEach(d => {
+    const m = d.materiaNome || 'Outros';
+    if (!byMateria[m]) byMateria[m] = { total: 0, count: 0 };
+    byMateria[m].total += (d.taxaAcerto || 0);
+    byMateria[m].count += 1;
+  });
+
+  if (State.subjects.length) {
+    State.subjects.forEach(s => {
+      const entry = byMateria[s.name];
+      if (entry) {
+        s.accuracy = Math.round((entry.total / entry.count) * 100);
+        s.pct      = s.accuracy;
+      }
+    });
+  } else {
+    // Build subjects from diagnostic when /materias data is unavailable
+    State.subjects = Object.entries(byMateria).map(([nome, v], i) => {
+      const acc = Math.round((v.total / v.count) * 100);
+      const p = SUBJECT_PALETTE[i % SUBJECT_PALETTE.length];
+      return { id: i, name: nome, color: p.color, color2: p.color2,
+               init: nome.slice(0,2).toUpperCase(), accuracy: acc, status: 'track', topic: '—', pct: acc };
+    });
+  }
+}
+
+async function init() {
+  const uid = getUsuarioId();
+
+  const [diagResult, dashResult, recomResult, materiaResult] = await Promise.allSettled([
+    uid ? apiGet(`/diagnostico/usuario/${uid}`) : Promise.resolve(null),
+    uid ? apiGet(`/dashboard/usuario/${uid}`)   : Promise.resolve(null),
+    uid ? apiGet(`/recomendacao/usuario/${uid}`) : Promise.resolve(null),
+    apiGet('/materias'),
+  ]);
+
+  _diagData  = diagResult.status  === 'fulfilled' ? diagResult.value  : null;
+  _dashData  = dashResult.status  === 'fulfilled' ? dashResult.value  : null;
+  _recomData = recomResult.status === 'fulfilled' ? recomResult.value : null;
+
+  if (materiaResult.status === 'fulfilled' && Array.isArray(materiaResult.value)) {
+    State.subjects = materiaResult.value.filter(m => m.ativa !== false).map(materiaToSubject);
+  }
+  applyDiagnosticToSubjects();
+
+  render();
+  initDrawer();
+
+  const d = periods[activePeriod];
+  document.getElementById('perf-chart-wrap').innerHTML = buildPerfChart(d.labels, d.acc, d.tasks, 600, 200);
+}
+
+init();
 </script>
 </body>
 </html>

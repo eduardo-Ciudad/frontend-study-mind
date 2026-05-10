@@ -22,9 +22,7 @@
       <div class="form-group">
         <label class="form-label">Subject</label>
         <select class="form-input" id="new-topic-subject">
-          <option value="">Select subject</option>
-          <option>Math</option><option>Physics</option><option>Chemistry</option>
-          <option>Biology</option><option>History</option><option>Portuguese</option>
+          <option value="">Matéria selecionada automaticamente</option>
         </select>
       </div>
       <div class="form-group">
@@ -47,8 +45,12 @@
   </div>
 </div>
 
+<script src="../js/api.js"></script>
+<script src="../js/auth.js"></script>
 <script src="../js/shared.js"></script>
 <script>
+checkAuth();
+
 function icon_raw(name) {
   const map = {
     x: `<svg class="icon" width="14" height="14" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`
@@ -56,28 +58,34 @@ function icon_raw(name) {
   return map[name] || '';
 }
 
-const topicsData = {
-  Math:       [{name:'Algebra basics', done:true, diff:'easy'},{name:'Quadratic functions', done:false, diff:'medium'},{name:'Exponential functions', done:false, diff:'medium'},{name:'Trigonometry', done:false, diff:'hard'},{name:'Geometry', done:false, diff:'medium'}],
-  Physics:    [{name:'Kinematics', done:true, diff:'medium'},{name:'Dynamics', done:false, diff:'hard'},{name:'Energy & Work', done:false, diff:'medium'},{name:'Waves', done:false, diff:'hard'}],
-  Chemistry:  [{name:'Periodic table', done:true, diff:'easy'},{name:'Stoichiometry', done:false, diff:'hard'},{name:'Solutions', done:false, diff:'medium'}],
-  Biology:    [{name:'Cell biology', done:true, diff:'easy'},{name:'Cell respiration', done:false, diff:'medium'},{name:'Photosynthesis', done:false, diff:'medium'},{name:'Genetics', done:false, diff:'hard'}],
-  History:    [{name:'Colonial Brazil', done:true, diff:'medium'},{name:'Imperial Brazil', done:true, diff:'medium'},{name:'Vargas era', done:false, diff:'medium'},{name:'Military dictatorship', done:false, diff:'hard'}],
-  Portuguese: [{name:'Reading comprehension', done:false, diff:'medium'},{name:'Text interpretation', done:false, diff:'medium'},{name:'Grammar review', done:true, diff:'easy'},{name:'Essay structure', done:false, diff:'hard'}],
-};
+// topicsData keyed by materia ID → array of topico API objects
+const topicsData = {};
+// activeSubject = materia object from State.subjects
+let activeSubject = null;
 
-let activeSubject = 'Math';
-const diffColor = { easy:'emerald', medium:'amber', hard:'rose' };
+const diffMap = { easy:'FACIL', medium:'MEDIO', hard:'DIFICIL' };
+const diffFromApi = { FACIL:'easy', MEDIO:'medium', DIFICIL:'hard' };
+const diffColor = { easy:'emerald', medium:'amber', hard:'rose', FACIL:'emerald', MEDIO:'amber', DIFICIL:'rose' };
 
-function setActiveSubject(name) {
-  activeSubject = name;
+async function setActiveSubject(subj) {
+  activeSubject = subj;
+  document.querySelectorAll('.subj-card').forEach(c =>
+    c.classList.toggle('subj-card--active', Number(c.dataset.id) === subj.id));
+
+  if (!topicsData[subj.id]) {
+    try {
+      const data = await apiGet(`/topicos?materiaId=${subj.id}`);
+      topicsData[subj.id] = Array.isArray(data) ? data : [];
+    } catch(err) { handleApiError(err); topicsData[subj.id] = []; }
+  }
   renderTopics();
-  document.querySelectorAll('.subj-card').forEach(c => c.classList.toggle('subj-card--active', c.dataset.name === name));
 }
 
 function renderTopics() {
-  const subj = State.subjects.find(s => s.name === activeSubject);
-  const topics = topicsData[activeSubject] || [];
-  const done = topics.filter(t => t.done).length;
+  const subj = activeSubject;
+  if (!subj) return;
+  const topics = topicsData[subj.id] || [];
+  const done = topics.filter(t => !t.ativo).length;
 
   document.getElementById('topic-panel').innerHTML = `
     <div class="card card--padded" style="height:100%">
@@ -97,41 +105,62 @@ function renderTopics() {
       </div>
 
       <div style="display:flex;flex-direction:column;gap:8px">
-        ${topics.map((t,i) => `
-          <div class="topic-item${t.done ? ' topic-item--done' : ''}" onclick="toggleTopicDone('${activeSubject}',${i})">
+        ${topics.length ? topics.map(t => {
+          const isDone = !t.ativo;
+          const nivel = t.nivelDificuldade || t.nivel || 'MEDIO';
+          const dc = diffColor[nivel] || 'muted';
+          return `
+          <div class="topic-item${isDone ? ' topic-item--done' : ''}" onclick="toggleTopicDone(${t.id})">
             <div class="task__check">${icon('check',10)}</div>
             <div style="flex:1">
-              <div style="font-size:14px;font-weight:500;color:${t.done ? 'var(--fg-4)' : 'var(--fg-1)'};${t.done ? 'text-decoration:line-through':''}">
-                ${t.name}
+              <div style="font-size:14px;font-weight:500;color:${isDone ? 'var(--fg-4)' : 'var(--fg-1)'};${isDone ? 'text-decoration:line-through':''}">
+                ${t.nome}
               </div>
             </div>
-            <span class="badge badge--${diffColor[t.diff]}">${t.diff}</span>
-            <button class="btn btn--ghost btn--sm btn--icon" onclick="event.stopPropagation();showToast('Edit: ${t.name}')" title="Edit">
+            <span class="badge badge--${dc}">${nivel}</span>
+            <button class="btn btn--ghost btn--sm btn--icon" onclick="event.stopPropagation();showToast('Edit: ${t.nome}')" title="Edit">
               ${icon('edit',13)}
             </button>
-          </div>`).join('')}
+          </div>`;
+        }).join('') : `<div class="empty-state">${icon('book',28)}<p>Nenhum tópico cadastrado</p></div>`}
       </div>
     </div>`;
 }
 
-function toggleTopicDone(subject, idx) {
-  topicsData[subject][idx].done = !topicsData[subject][idx].done;
-  const t = topicsData[subject][idx];
-  showToast(t.done ? `"${t.name}" marked complete!` : `"${t.name}" reopened`);
-  renderTopics();
+async function toggleTopicDone(topicoId) {
+  const topics = topicsData[activeSubject.id] || [];
+  const t = topics.find(x => x.id === topicoId);
+  if (!t) return;
+  const newAtivo = !t.ativo;
+  try {
+    await apiPut(`/topicos/${topicoId}`, { nome: t.nome, nivelDificuldade: t.nivelDificuldade || t.nivel, ativo: newAtivo });
+    t.ativo = newAtivo;
+    showToast(newAtivo ? `"${t.nome}" reopened` : `"${t.nome}" marked complete!`);
+    renderTopics();
+  } catch(err) { handleApiError(err); }
 }
 
-function addTopic() {
-  const subj = document.getElementById('new-topic-subject').value;
+async function addTopic() {
+  if (!activeSubject) { showToast('Selecione uma matéria', 'error'); return; }
   const name = document.getElementById('new-topic-name').value.trim();
   const diff = document.getElementById('new-topic-diff').value;
-  if (!subj || !name) { showToast('Fill all fields', 'error'); return; }
-  if (!topicsData[subj]) topicsData[subj] = [];
-  topicsData[subj].push({ name, done: false, diff });
-  closeModal('modal-topic');
-  if (activeSubject === subj) renderTopics();
-  showToast(`Topic "${name}" added to ${subj}!`);
-  document.getElementById('new-topic-name').value = '';
+  if (!name) { showToast('Fill all fields', 'error'); return; }
+
+  const nivel = diffMap[diff] || 'MEDIO';
+  try {
+    const novo = await apiPost('/topicos', {
+      nome: name,
+      descricao: '',
+      nivelDificuldade: nivel,
+      materiaId: activeSubject.id,
+    });
+    if (!topicsData[activeSubject.id]) topicsData[activeSubject.id] = [];
+    topicsData[activeSubject.id].push({ ...novo, ativo: true });
+    closeModal('modal-topic');
+    renderTopics();
+    showToast(`Tópico "${name}" adicionado!`);
+    document.getElementById('new-topic-name').value = '';
+  } catch(err) { handleApiError(err); }
 }
 
 function render() {
@@ -152,44 +181,65 @@ function render() {
         <div class="subj-layout">
           <!-- Subject cards sidebar -->
           <div style="display:flex;flex-direction:column;gap:10px">
-            ${State.subjects.map(s => {
-              const topics = topicsData[s.name] || [];
-              const done = topics.filter(t=>t.done).length;
-              const statusColor = s.status === 'track' ? 'emerald' : s.status === 'lag' ? 'amber' : 'rose';
+            ${State.subjects.length ? State.subjects.map(s => {
+              const topics = topicsData[s.id] || [];
+              const done = topics.filter(t => !t.ativo).length;
+              const statusColor = 'emerald';
               return `
-              <div class="subj-card${s.name === activeSubject ? ' subj-card--active' : ''}"
-                   data-name="${s.name}" onclick="setActiveSubject('${s.name}')"
+              <div class="subj-card${activeSubject && activeSubject.id === s.id ? ' subj-card--active' : ''}"
+                   data-id="${s.id}" onclick="setActiveSubject(State.subjects.find(x=>x.id===${s.id}))"
                    style="--subj-color:${s.color}">
                 <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
                   <div class="roadmap__icon" style="background:linear-gradient(135deg,${s.color},${s.color2})">${s.init}</div>
                   <div style="flex:1">
                     <div style="font-size:14px;font-weight:600;color:var(--fg-1)">${s.name}</div>
-                    <span class="badge badge--${statusColor}" style="font-size:10px;padding:2px 7px">${s.status === 'track' ? 'On track' : s.status === 'lag' ? 'Lagging' : 'At risk'}</span>
+                    <span class="badge badge--${statusColor}" style="font-size:10px;padding:2px 7px">Ativo</span>
                   </div>
-                  <div style="font-family:var(--font-mono);font-size:16px;font-weight:600;color:var(--fg-1)">${s.accuracy}%</div>
+                  <div style="font-family:var(--font-mono);font-size:16px;font-weight:600;color:var(--fg-1)">${topics.length} tópicos</div>
                 </div>
                 <div class="progress-bar" style="height:5px;margin-bottom:8px">
                   <div class="progress-bar__fill" style="width:${s.pct}%;background:linear-gradient(90deg,${s.color},${s.color2})"></div>
                 </div>
-                <div style="font-size:11px;color:var(--fg-4)">${done}/${topics.length} topics · ${s.topic}</div>
+                <div style="font-size:11px;color:var(--fg-4)">${done}/${topics.length} done · ${s.topic}</div>
               </div>`;
-            }).join('')}
+            }).join('') : `<div class="empty-state">${icon('book',28)}<p>Nenhuma matéria cadastrada</p></div>`}
           </div>
 
           <!-- Topics panel -->
-          <div id="topic-panel"></div>
+          <div id="topic-panel">
+            <div class="card card--padded" style="height:100%;display:flex;align-items:center;justify-content:center">
+              <div class="empty-state">${icon('book',28)}<p>Selecione uma matéria</p></div>
+            </div>
+          </div>
         </div>
 
         ${buildTechStrip()}
       </main>
     </div>`;
 
-  renderTopics();
   initModals();
+  if (activeSubject) renderTopics();
 }
 
-render();
-initDrawer();
+async function init() {
+  try {
+    const data = await apiGet('/materias');
+    State.subjects = Array.isArray(data)
+      ? data.filter(m => m.ativa !== false).map(materiaToSubject)
+      : [];
+  } catch(err) { handleApiError(err); }
+
+  render();
+  initDrawer();
+
+  // Auto-select first subject
+  if (State.subjects.length) {
+    await setActiveSubject(State.subjects[0]);
+    render();
+  }
+}
+
+init();
 </script>
 
 <style>

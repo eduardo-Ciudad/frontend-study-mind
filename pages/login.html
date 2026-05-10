@@ -255,19 +255,6 @@
             <span class="strength-text" id="strength-text"></span>
             <span class="form-error" id="reg-pass-err">Password must be at least 8 characters.</span>
           </div>
-          <div class="form-group">
-            <label class="form-label">Target exam</label>
-            <div class="input-wrap">
-              <span class="input-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg></span>
-              <select class="form-input" id="reg-exam" style="padding-left:40px">
-                <option value="">Select your exam</option>
-                <option value="enem">ENEM 2026</option>
-                <option value="fuvest">FUVEST 2026</option>
-                <option value="unicamp">UNICAMP 2026</option>
-                <option value="other">Other</option>
-              </select>
-            </div>
-          </div>
           <button type="submit" class="btn-submit">Create account</button>
         </form>
       </div>
@@ -278,6 +265,8 @@
     </div>
   </div>
 
+  <script src="../js/api.js"></script>
+  <script src="../js/auth.js"></script>
   <script>
     // Tab switching
     document.querySelectorAll('.auth-tab').forEach(tab => {
@@ -308,35 +297,104 @@
       });
     }
 
+    function setSubmitting(form, loading) {
+      const btn = form.querySelector('.btn-submit');
+      btn.disabled = loading;
+      btn.textContent = loading ? 'Loading…' : btn.dataset.label;
+    }
+
+    function showFieldError(id, msg) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.textContent = msg || el.dataset.default || el.textContent;
+      el.classList.add('show');
+    }
+    function clearFieldError(id) {
+      const el = document.getElementById(id);
+      if (el) el.classList.remove('show');
+    }
+
+    // Store default button labels
+    document.querySelectorAll('.btn-submit').forEach(b => b.dataset.label = b.textContent);
+
     // Login form
-    document.getElementById('login-form').addEventListener('submit', e => {
+    document.getElementById('login-form').addEventListener('submit', async e => {
       e.preventDefault();
-      const email = document.getElementById('login-email').value;
+      const form  = e.target;
+      const email = document.getElementById('login-email').value.trim();
       const pass  = document.getElementById('login-pass').value;
       let ok = true;
+
       if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        document.getElementById('login-email-err').classList.add('show'); ok = false;
-      } else { document.getElementById('login-email-err').classList.remove('show'); }
+        showFieldError('login-email-err', 'Enter a valid email address.'); ok = false;
+      } else { clearFieldError('login-email-err'); }
+
       if (!pass) {
-        document.getElementById('login-pass-err').classList.add('show'); ok = false;
-      } else { document.getElementById('login-pass-err').classList.remove('show'); }
-      if (ok) window.location.href = '../index.html';
+        showFieldError('login-pass-err', 'Password is required.'); ok = false;
+      } else { clearFieldError('login-pass-err'); }
+
+      if (!ok) return;
+      setSubmitting(form, true);
+
+      try {
+        await login(email, pass);
+        window.location.href = '../index.html';
+      } catch (err) {
+        setSubmitting(form, false);
+        if (err.type === 'network') {
+          showFieldError('login-pass-err', 'Sem conexão com o servidor.');
+        } else if (err.type === 'validation') {
+          showFieldError('login-email-err', 'Email ou senha inválidos.');
+        } else if (err.type === 'server') {
+          showFieldError('login-pass-err', 'Erro interno do servidor.');
+        } else {
+          showFieldError('login-pass-err', 'Credenciais inválidas. Tente novamente.');
+        }
+      }
     });
 
     // Register form
-    document.getElementById('register-form').addEventListener('submit', e => {
+    document.getElementById('register-form').addEventListener('submit', async e => {
       e.preventDefault();
-      const name  = document.getElementById('reg-name').value;
-      const email = document.getElementById('reg-email').value;
+      const form  = e.target;
+      const nome  = document.getElementById('reg-name').value.trim();
+      const email = document.getElementById('reg-email').value.trim();
       const pass  = document.getElementById('reg-pass').value;
       let ok = true;
-      if (!name) { document.getElementById('reg-name-err').classList.add('show'); ok=false; }
-      else document.getElementById('reg-name-err').classList.remove('show');
-      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { document.getElementById('reg-email-err').classList.add('show'); ok=false; }
-      else document.getElementById('reg-email-err').classList.remove('show');
-      if (!pass || pass.length < 8) { document.getElementById('reg-pass-err').classList.add('show'); ok=false; }
-      else document.getElementById('reg-pass-err').classList.remove('show');
-      if (ok) window.location.href = '../index.html';
+
+      if (!nome) { showFieldError('reg-name-err', 'Name is required.'); ok = false; }
+      else { clearFieldError('reg-name-err'); }
+
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        showFieldError('reg-email-err', 'Enter a valid email address.'); ok = false;
+      } else { clearFieldError('reg-email-err'); }
+
+      if (!pass || pass.length < 8) {
+        showFieldError('reg-pass-err', 'Password must be at least 8 characters.'); ok = false;
+      } else { clearFieldError('reg-pass-err'); }
+
+      if (!ok) return;
+      setSubmitting(form, true);
+
+      try {
+        await registro(nome, email, pass);
+        window.location.href = '../index.html';
+      } catch (err) {
+        setSubmitting(form, false);
+        if (err.type === 'network') {
+          showFieldError('reg-pass-err', 'Sem conexão com o servidor.');
+        } else if (err.type === 'validation') {
+          const msgs = err.errors || {};
+          if (msgs.email) showFieldError('reg-email-err', msgs.email);
+          if (msgs.senha) showFieldError('reg-pass-err', msgs.senha);
+          if (msgs.nome)  showFieldError('reg-name-err', msgs.nome);
+          if (!msgs.email && !msgs.senha && !msgs.nome) {
+            showFieldError('reg-pass-err', 'Erro de validação. Verifique os campos.');
+          }
+        } else {
+          showFieldError('reg-pass-err', 'Erro ao criar conta. Tente novamente.');
+        }
+      }
     });
   </script>
 </body>

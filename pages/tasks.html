@@ -22,29 +22,32 @@
     </div>
     <div class="col">
       <div class="form-group">
-        <label class="form-label">Task title</label>
-        <input class="form-input" id="new-task-title" placeholder="e.g. Quadratic functions practice"/>
+        <label class="form-label">Descrição</label>
+        <input class="form-input" id="new-task-title" placeholder="e.g. Revisar funções quadráticas"/>
       </div>
       <div class="form-group">
-        <label class="form-label">Subject</label>
+        <label class="form-label">Tipo</label>
         <select class="form-input" id="new-task-subject">
-          <option>Math</option><option>Physics</option><option>Chemistry</option>
-          <option>Biology</option><option>History</option><option>Portuguese</option>
+          <option value="REVISAO">Revisão</option>
+          <option value="PRATICA">Prática</option>
+          <option value="LEITURA">Leitura</option>
         </select>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-        <div class="form-group">
-          <label class="form-label">Priority</label>
-          <select class="form-input" id="new-task-priority">
-            <option value="high">High</option>
-            <option value="med" selected>Medium</option>
-            <option value="low">Low</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Estimated time</label>
-          <input class="form-input" id="new-task-time" placeholder="e.g. 30m"/>
-        </div>
+      <div class="form-group">
+        <label class="form-label">Matéria</label>
+        <select class="form-input" id="new-task-materia" onchange="onMateriaChange()">
+          <option value="">Selecione a matéria</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Tópico</label>
+        <select class="form-input" id="new-task-topico">
+          <option value="">Selecione o tópico</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Prazo</label>
+        <input class="form-input" id="new-task-time" type="date"/>
       </div>
     </div>
     <div class="modal__footer">
@@ -54,55 +57,100 @@
   </div>
 </div>
 
+<script src="../js/api.js"></script>
+<script src="../js/auth.js"></script>
 <script src="../js/shared.js"></script>
 <script>
+checkAuth();
+
 let filterSubject = 'all';
 let filterStatus  = 'all';
-let filterPriority = 'all';
-let sortBy = 'priority';
-let nextId = State.tasks.length + 1;
-
-const pOrder = { high:0, med:1, low:2 };
-const pLabel = { high:'High', med:'Medium', low:'Low' };
-const pBadge = { high:'rose', med:'amber', low:'muted' };
+let sortBy = 'default';
 
 function getFiltered() {
   return State.tasks
-    .filter(t => filterSubject === 'all' || t.subject === filterSubject)
-    .filter(t => filterStatus === 'all' || (filterStatus === 'done' ? t.done : !t.done))
-    .filter(t => filterPriority === 'all' || t.priority === filterPriority)
-    .sort((a,b) => sortBy === 'priority' ? pOrder[a.priority] - pOrder[b.priority] : a.title.localeCompare(b.title));
+    .filter(t => filterSubject === 'all' || (t.materiaNome || '') === filterSubject)
+    .filter(t => {
+      if (filterStatus === 'all') return true;
+      if (filterStatus === 'done')    return t.status === 'CONCLUIDA';
+      if (filterStatus === 'pending') return t.status === 'PENDENTE';
+      return true;
+    })
+    .sort((a,b) => sortBy === 'title'
+      ? (a.descricao || '').localeCompare(b.descricao || '')
+      : 0);
 }
 
-function toggleTask(id) {
+async function toggleTask(id) {
   const t = State.tasks.find(t => t.id === id);
-  if (t) { t.done = !t.done; showToast(t.done ? 'Task completed! 🎯' : 'Task reopened'); renderTasks(); }
+  if (!t) return;
+  const newStatus = t.status === 'CONCLUIDA' ? 'PENDENTE' : 'CONCLUIDA';
+  try {
+    await apiPut(`/tarefas/${id}`, { ...t, status: newStatus });
+    t.status = newStatus;
+    showToast(newStatus === 'CONCLUIDA' ? 'Task completed!' : 'Task reopened');
+    renderTasks();
+  } catch(err) { handleApiError(err); }
 }
 
-function deleteTask(id) {
-  const idx = State.tasks.findIndex(t => t.id === id);
-  if (idx !== -1) { State.tasks.splice(idx,1); showToast('Task deleted'); renderTasks(); }
+async function deleteTask(id) {
+  try {
+    await apiDelete(`/tarefas/${id}`);
+    const idx = State.tasks.findIndex(t => t.id === id);
+    if (idx !== -1) State.tasks.splice(idx, 1);
+    showToast('Tarefa cancelada');
+    renderTasks();
+  } catch(err) { handleApiError(err); }
 }
 
-function addTask() {
-  const title = document.getElementById('new-task-title').value.trim();
-  const subject = document.getElementById('new-task-subject').value;
-  const priority = document.getElementById('new-task-priority').value;
-  const time = document.getElementById('new-task-time').value || '—';
-  if (!title) { showToast('Task title is required', 'error'); return; }
-  State.tasks.unshift({ id: nextId++, title, sub: `${subject} · added today`, subject, priority, time, done: false });
-  closeModal('modal-task');
-  document.getElementById('new-task-title').value = '';
-  renderTasks();
-  showToast(`Task "${title}" created!`);
+async function addTask() {
+  const desc    = document.getElementById('new-task-title').value.trim();
+  const tipo    = document.getElementById('new-task-subject').value; // repurposed as tipo
+  const topicoId = Number(document.getElementById('new-task-topico').value);
+  const prazo   = document.getElementById('new-task-time').value || null;
+  const uid     = Number(getUsuarioId());
+
+  if (!desc) { showToast('Descrição é obrigatória', 'error'); return; }
+  if (!topicoId) { showToast('Selecione um tópico', 'error'); return; }
+
+  try {
+    const nova = await apiPost('/tarefas', {
+      usuarioId: uid,
+      topicoId,
+      tipo: tipo || 'REVISAO',
+      descricao: desc,
+      meta: 10,
+      prazo: prazo || null,
+    });
+    State.tasks.unshift(nova);
+    closeModal('modal-task');
+    document.getElementById('new-task-title').value = '';
+    document.getElementById('new-task-time').value  = '';
+    renderTasks();
+    showToast(`Tarefa "${desc}" criada!`);
+  } catch(err) { handleApiError(err); }
+}
+
+// Populate tópico select when materia changes in the modal
+async function onMateriaChange() {
+  const materiaId = Number(document.getElementById('new-task-materia').value);
+  const sel = document.getElementById('new-task-topico');
+  sel.innerHTML = '<option value="">Carregando...</option>';
+  if (!materiaId) { sel.innerHTML = '<option value="">Selecione um tópico</option>'; return; }
+  try {
+    const data = await apiGet(`/topicos?materiaId=${materiaId}`);
+    const topicos = Array.isArray(data) ? data.filter(t => t.ativo !== false) : [];
+    sel.innerHTML = topicos.length
+      ? topicos.map(t => `<option value="${t.id}">${t.nome}</option>`).join('')
+      : '<option value="">Nenhum tópico disponível</option>';
+  } catch { sel.innerHTML = '<option value="">Erro ao carregar tópicos</option>'; }
 }
 
 function renderTasks() {
   const tasks = getFiltered();
-  const pending = State.tasks.filter(t=>!t.done).length;
-  const done    = State.tasks.filter(t=>t.done).length;
+  const pending = State.tasks.filter(t => t.status === 'PENDENTE').length;
+  const done    = State.tasks.filter(t => t.status === 'CONCLUIDA').length;
 
-  // update summary
   document.getElementById('task-summary').innerHTML = `
     <span style="color:var(--fg-1);font-weight:500">${pending}</span> pending &nbsp;·&nbsp;
     <span style="color:var(--emerald-400);font-weight:500">${done}</span> done &nbsp;·&nbsp;
@@ -114,24 +162,26 @@ function renderTasks() {
     return;
   }
 
-  list.innerHTML = tasks.map(t => `
-    <div class="task${t.done ? ' task--done':''}">
+  list.innerHTML = tasks.map(t => {
+    const done = t.status === 'CONCLUIDA';
+    return `
+    <div class="task${done ? ' task--done':''}">
       <div class="task__check" onclick="event.stopPropagation();toggleTask(${t.id})">${icon('check',10)}</div>
       <div onclick="toggleTask(${t.id})">
-        <div class="task__title">${t.title}</div>
-        <div class="task__sub">${t.sub}</div>
+        <div class="task__title">${t.descricao || '—'}</div>
+        <div class="task__sub">${t.tipo || ''} · ${t.topicoNome || t.materiaNome || ''}</div>
       </div>
-      <span class="badge badge--${pBadge[t.priority]}">${pLabel[t.priority]}</span>
-      <div class="task__time">${t.time}</div>
-      <button class="btn btn--ghost btn--sm btn--icon" onclick="deleteTask(${t.id})" title="Delete task" style="color:var(--fg-4)">
+      <span class="badge badge--muted">${t.tipo || ''}</span>
+      <div class="task__time">${t.prazo ? t.prazo.slice(0,10) : '—'}</div>
+      <button class="btn btn--ghost btn--sm btn--icon" onclick="deleteTask(${t.id})" title="Cancelar tarefa" style="color:var(--fg-4)">
         ${icon('trash',13)}
       </button>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 function render() {
-  const pending = State.tasks.filter(t=>!t.done).length;
-  const subjects = ['all', ...State.subjects.map(s=>s.name)];
+  const subjNames = ['all', ...State.subjects.map(s => s.name)];
 
   document.getElementById('app').innerHTML = `
     ${buildSidebar('tasks')}
@@ -150,9 +200,9 @@ function render() {
         <!-- Filter bar -->
         <div class="filter-bar">
           <div class="filter-group">
-            <span class="filter-label">Subject</span>
+            <span class="filter-label">Matéria</span>
             <div class="filter-pills" id="filter-subject">
-              ${subjects.map(s => `<button class="filter-pill${filterSubject===s?' active':''}" onclick="setFilter('subject','${s}')">${s==='all'?'All':s}</button>`).join('')}
+              ${subjNames.map(s => `<button class="filter-pill${filterSubject===s?' active':''}" onclick="setFilter('subject','${s}')">${s==='all'?'All':s}</button>`).join('')}
             </div>
           </div>
           <div style="flex:1"></div>
@@ -162,14 +212,8 @@ function render() {
               <option value="pending">Pending</option>
               <option value="done">Done</option>
             </select>
-            <select class="form-input" style="width:auto;padding:7px 12px;font-size:13px" onchange="filterPriority=this.value;renderTasks()">
-              <option value="all">All priority</option>
-              <option value="high">High</option>
-              <option value="med">Medium</option>
-              <option value="low">Low</option>
-            </select>
             <select class="form-input" style="width:auto;padding:7px 12px;font-size:13px" onchange="sortBy=this.value;renderTasks()">
-              <option value="priority">Sort: Priority</option>
+              <option value="default">Sort: Default</option>
               <option value="title">Sort: Name</option>
             </select>
           </div>
@@ -178,10 +222,10 @@ function render() {
         <!-- Stats row -->
         <div class="grid-4" style="margin:20px 0">
           ${[
-            {label:'Pending', val:State.tasks.filter(t=>!t.done).length, ico:'clock', cls:''},
-            {label:'Completed', val:State.tasks.filter(t=>t.done).length, ico:'check-circle', cls:'stat__icon--em'},
-            {label:'High priority', val:State.tasks.filter(t=>t.priority==='high'&&!t.done).length, ico:'alert', cls:'stat__icon--rs'},
-            {label:'This week', val:State.tasks.length, ico:'calendar', cls:'stat__icon--am'},
+            {label:'Pending',   val:State.tasks.filter(t=>t.status==='PENDENTE').length,   ico:'clock',        cls:''},
+            {label:'Completed', val:State.tasks.filter(t=>t.status==='CONCLUIDA').length,  ico:'check-circle', cls:'stat__icon--em'},
+            {label:'Cancelled', val:State.tasks.filter(t=>t.status==='CANCELADA').length,  ico:'alert',        cls:'stat__icon--rs'},
+            {label:'Total',     val:State.tasks.length,                                    ico:'calendar',     cls:'stat__icon--am'},
           ].map(c => `
             <div class="card stat card--hover">
               <div class="stat__head"><div class="stat__icon ${c.cls}">${icon(c.ico,16)}</div></div>
@@ -201,20 +245,39 @@ function render() {
 
   initModals();
   renderTasks();
-
-  document.querySelectorAll('.task').forEach(t => {
-    t.style.gridTemplateColumns = '22px 1fr auto auto auto';
-  });
 }
 
 function setFilter(type, val) {
   if (type === 'subject') filterSubject = val;
-  document.querySelectorAll(`#filter-${type} .filter-pill`).forEach(p => p.classList.toggle('active', p.textContent.trim() === (val==='all'?'All':val)));
+  document.querySelectorAll(`#filter-${type} .filter-pill`).forEach(p =>
+    p.classList.toggle('active', p.textContent.trim() === (val === 'all' ? 'All' : val)));
   renderTasks();
 }
 
-render();
-initDrawer();
+async function init() {
+  // Load materias and tasks in parallel
+  const uid = getUsuarioId();
+  await Promise.all([
+    apiGet('/materias').then(d => {
+      State.subjects = Array.isArray(d) ? d.filter(m => m.ativa !== false).map(materiaToSubject) : [];
+    }).catch(() => {}),
+    uid ? apiGet(`/tarefas/usuario/${uid}`).then(d => {
+      State.tasks = Array.isArray(d) ? d : [];
+    }).catch(() => {}) : Promise.resolve(),
+  ]);
+
+  // Populate modal materia select
+  const matSel = document.getElementById('new-task-materia');
+  if (matSel) {
+    matSel.innerHTML = State.subjects.map(s =>
+      `<option value="${s.id}">${s.name}</option>`).join('');
+  }
+
+  render();
+  initDrawer();
+}
+
+init();
 </script>
 
 <style>

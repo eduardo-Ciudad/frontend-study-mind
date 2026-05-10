@@ -50,29 +50,23 @@ function icon(name, size = 18) {
 }
 
 // ── App State ────────────────────────────────────────────────
+function _buildUser() {
+  const nome = (typeof getUsuarioNome === 'function' ? getUsuarioNome() : null) || 'Usuário';
+  const parts = nome.trim().split(' ');
+  const initials = parts.length >= 2
+    ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+    : nome.slice(0, 2).toUpperCase();
+  return { name: nome, initials, plan: 'StudyMind · ENEM 2026' };
+}
+
 const State = {
-  user: { name: 'Eduardo C.', initials: 'EC', plan: 'Pro · ENEM 2026' },
+  get user() { return _buildUser(); },
 
-  subjects: [
-    { id:1, name:'Math',       color:'#6366F1', color2:'#818CF8', init:'M',  accuracy:78, status:'track', topic:'Quadratic functions',   pct:78 },
-    { id:2, name:'Physics',    color:'#38BDF8', color2:'#7DD3FC', init:'P',  accuracy:64, status:'track', topic:'Kinematics review',     pct:64 },
-    { id:3, name:'Chemistry',  color:'#F472B6', color2:'#F9A8D4', init:'C',  accuracy:54, status:'risk',  topic:'Stoichiometry',         pct:32 },
-    { id:4, name:'Biology',    color:'#10B981', color2:'#34D399', init:'B',  accuracy:71, status:'track', topic:'Cell respiration',      pct:71 },
-    { id:5, name:'History',    color:'#F59E0B', color2:'#FBBF24', init:'H',  accuracy:60, status:'lag',   topic:'Vargas era',            pct:48 },
-    { id:6, name:'Portuguese', color:'#A78BFA', color2:'#C4B5FD', init:'Pt', accuracy:82, status:'track', topic:'Reading comprehension', pct:82 },
-  ],
+  // Populated at runtime by each page's load function
+  subjects: [],
+  tasks: [],
 
-  tasks: [
-    { id:1, title:'Quadratic functions — practice set',  sub:'Math · Algebra · 20 questions',           subject:'Math',       priority:'high', time:'45m', done:false },
-    { id:2, title:'Stoichiometry drills',                sub:'Chemistry · 12 problems',                 subject:'Chemistry',  priority:'high', time:'50m', done:false },
-    { id:3, title:'Reading comprehension — 2 passages',  sub:'Portuguese · ENEM 2024 sample',           subject:'Portuguese', priority:'med',  time:'40m', done:false },
-    { id:4, title:'Cell respiration — flashcards',       sub:'Biology · spaced repetition · due today', subject:'Biology',    priority:'med',  time:'15m', done:true  },
-    { id:5, title:'Vargas era timeline — review',        sub:'History · 5 key events',                  subject:'History',    priority:'low',  time:'20m', done:true  },
-    { id:6, title:'Kinematics — velocity problems',      sub:'Physics · 8 exercises',                   subject:'Physics',    priority:'med',  time:'30m', done:false },
-    { id:7, title:'Trigonometry review',                 sub:'Math · functions · 15 questions',         subject:'Math',       priority:'low',  time:'35m', done:false },
-    { id:8, title:'Periodic table memorization',         sub:'Chemistry · elements 1-36',               subject:'Chemistry',  priority:'low',  time:'20m', done:true  },
-  ],
-
+  // Roadmap remains static (no backend endpoint)
   roadmap: [
     { subject:'Math',       weeks:[ {label:'W1',done:true},{label:'W2',done:true},{label:'W3',done:true},{label:'W4',done:false},{label:'W5',done:false},{label:'W6',done:false} ], current:'Quadratic functions', next:'Exponential functions', pct:78 },
     { subject:'Physics',    weeks:[ {label:'W1',done:true},{label:'W2',done:true},{label:'W3',done:false},{label:'W4',done:false},{label:'W5',done:false},{label:'W6',done:false} ], current:'Kinematics', next:'Dynamics', pct:64 },
@@ -86,9 +80,52 @@ const State = {
     labels: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],
     accuracy: [62, 65, 68, 64, 72, 75, 76],
     tasks:    [40, 55, 50, 70, 60, 75, 82],
-    bySubject30d: { Math:78, Physics:64, Chemistry:54, Biology:71, History:60, Portuguese:82 },
+    bySubject30d: {},
   },
 };
+
+// Palette used to colour subjects coming from the API
+const SUBJECT_PALETTE = [
+  { color:'#6366F1', color2:'#818CF8' },
+  { color:'#38BDF8', color2:'#7DD3FC' },
+  { color:'#F472B6', color2:'#F9A8D4' },
+  { color:'#10B981', color2:'#34D399' },
+  { color:'#F59E0B', color2:'#FBBF24' },
+  { color:'#A78BFA', color2:'#C4B5FD' },
+  { color:'#34D399', color2:'#6EE7B7' },
+  { color:'#FB923C', color2:'#FDBA74' },
+];
+
+// Convert an API materia into the shape expected by shared builders
+function materiaToSubject(m, index) {
+  const p = SUBJECT_PALETTE[index % SUBJECT_PALETTE.length];
+  const words = (m.nome || '').trim().split(' ');
+  const init  = words.length >= 2
+    ? (words[0][0] + words[1][0]).toUpperCase()
+    : (m.nome || '?').slice(0, 2).toUpperCase();
+  return {
+    id:       m.id,
+    name:     m.nome,
+    color:    p.color,
+    color2:   p.color2,
+    init,
+    accuracy: 0,
+    status:   'track',
+    topic:    '—',
+    pct:      0,
+  };
+}
+
+// Handle API errors with toasts (requires showToast to be defined)
+function handleApiError(err) {
+  if (!err) return;
+  if (err.type === 'auth')      return; // already redirected
+  if (err.type === 'network')   { showToast('Sem conexão com o servidor', 'error'); return; }
+  if (err.type === 'forbidden') { showToast('Acesso negado', 'error'); return; }
+  if (err.type === 'notfound')  { showToast('Recurso não encontrado', 'error'); return; }
+  if (err.type === 'server')    { showToast('Erro interno do servidor', 'error'); return; }
+  showToast(err.message || 'Erro desconhecido', 'error');
+}
 
 // ── Toast ────────────────────────────────────────────────────
 function showToast(msg, type = 'success') {

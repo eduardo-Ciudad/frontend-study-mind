@@ -11,12 +11,53 @@
 <div id="app" class="app"></div>
 <div id="toast-container"></div>
 
+<script src="js/api.js"></script>
+<script src="js/auth.js"></script>
 <script src="js/shared.js"></script>
 <script>
+checkAuth();
+
 // ── Render ───────────────────────────────────────────────────
+// ── Dashboard data ──────────────────────────────────────────
+let _dashData   = null;
+let _recomData  = null;
+
 function render() {
   const s = State;
-  const pending = s.tasks.filter(t => !t.done).length;
+  const pending = s.tasks.filter(t => t.status !== 'CONCLUIDA' && t.status !== 'CANCELADA').length;
+
+  // Stats from dashboard API or fallback
+  const totalRespostas   = _dashData ? _dashData.totalRespostas   : '—';
+  const taxaAcerto       = _dashData ? Math.round(_dashData.taxaAcertoGeral * 100) + '%' : '—%';
+  const fraco            = _dashData && _dashData.topicosMaisFracos && _dashData.topicosMaisFracos[0]
+                             ? _dashData.topicosMaisFracos[0] : null;
+  const fracoNome        = fraco ? (fraco.topicoNome || fraco.nome || 'N/A') : '—';
+  const fracoMateria     = fraco ? (fraco.materiaNome || '') : '';
+  const fracoTaxa        = fraco ? Math.round((fraco.taxaAcerto || 0) * 100) + '%' : '—';
+
+  // AI insights from recommendation API or fallback
+  const motivacional = _recomData ? _recomData.mensagemMotivacional : '';
+  const dicas = _recomData && _recomData.dicasPraticas ? _recomData.dicasPraticas : [];
+  const prioritarios = _recomData && _recomData.topicosPrioritarios ? _recomData.topicosPrioritarios : [];
+
+  const aiInsights = [];
+  if (motivacional) {
+    aiInsights.push({ ico:'sparkles', text: motivacional, meta:'StudyMind AI · Motivação' });
+  }
+  prioritarios.slice(0, 2).forEach(t => {
+    aiInsights.push({ ico:'alert', text: `Priorize: ${t.topicoNome || t.nome} (${t.materiaNome || ''})`, meta:'Tópico prioritário' });
+  });
+  dicas.slice(0, 3 - aiInsights.length).forEach(d => {
+    aiInsights.push({ ico:'zap', text: d, meta:'Dica prática · StudyMind AI' });
+  });
+  // Fallback if no AI data
+  if (!aiInsights.length) {
+    aiInsights.push(
+      { ico:'alert',      text:'Focus on your weakest topics to boost accuracy.', meta:'StudyMind AI' },
+      { ico:'rotate-ccw', text:'Keep your study streak going — consistency is key.', meta:'StudyMind AI' },
+      { ico:'zap',        text:'Review completed tasks to consolidate learning.',   meta:'StudyMind AI' }
+    );
+  }
 
   document.getElementById('app').innerHTML = `
     ${buildSidebar('dashboard')}
@@ -30,7 +71,7 @@ function render() {
             <div>
               <span class="hero-eyebrow">${icon('sparkles',12)} AI-powered personalized learning</span>
               <h1 class="hero-title">Your <b>Study Roadmap</b></h1>
-              <p class="hero-sub">Today's plan is calibrated to your weakest topics from the last 7 days. Stay on the path — you're 8 days from your ENEM target.</p>
+              <p class="hero-sub">Today's plan is calibrated to your weakest topics. Stay on the path — keep your streak alive!</p>
               <div class="row" style="gap:10px;margin-top:24px">
                 <button class="btn btn--primary" onclick="showToast('Session started!')">
                   ${icon('play',14)} Start today's session
@@ -42,10 +83,14 @@ function render() {
             </div>
             <div class="hero-today-card">
               <div class="hero-today-label">${icon('sparkles',12)} Generated for today</div>
-              <div style="font-size:14px;color:var(--fg-1);font-weight:500;margin-bottom:4px">3 focused tasks · ~2h 15m</div>
-              <div style="font-size:12px;color:var(--fg-3);margin-bottom:14px">Tuned to your last 5 quiz results</div>
-              ${['Algebra — Quadratic functions review|45m|ind','Chemistry — Stoichiometry drills|50m|em','Portuguese — Reading comprehension|40m|ind']
-                .map(r => { const [t,m,c] = r.split('|'); return `<div class="hero-task-row"><span class="htdot htdot--${c}"></span><span style="flex:1;color:var(--fg-1)">${t}</span><span style="font-family:var(--font-mono);font-size:11px;color:var(--fg-4)">${m}</span></div>`; }).join('')}
+              <div style="font-size:14px;color:var(--fg-1);font-weight:500;margin-bottom:4px">${pending} pending tasks</div>
+              <div style="font-size:12px;color:var(--fg-3);margin-bottom:14px">Based on your performance data</div>
+              ${s.tasks.slice(0,3).map(t => `
+                <div class="hero-task-row">
+                  <span class="htdot htdot--ind"></span>
+                  <span style="flex:1;color:var(--fg-1)">${t.descricao || t.titulo || '—'}</span>
+                  <span style="font-family:var(--font-mono);font-size:11px;color:var(--fg-4)">${t.tipo || ''}</span>
+                </div>`).join('')}
             </div>
           </div>
         </section>
@@ -55,39 +100,35 @@ function render() {
           <div class="grid-stats">
             <div class="card stat card--hover">
               <div class="stat__head">
-                <div class="stat__icon stat__icon--am">${icon('flame',16)}</div>
-                <span class="stat__delta">↑ +3</span>
-              </div>
-              <div class="stat__label">Study streak</div>
-              <div class="stat__value">12<span class="stat__value-unit"> days</span></div>
-              <div class="stat__sub">Personal best: 18 days</div>
-            </div>
-            <div class="card stat card--hover">
-              <div class="stat__head">
                 <div class="stat__icon stat__icon--em">${icon('check-circle',16)}</div>
-                <span class="stat__delta">↑ +22</span>
               </div>
-              <div class="stat__label">Tasks completed</div>
-              <div class="stat__value">148</div>
-              <div class="stat__sub">This month · target 180</div>
+              <div class="stat__label">Total respostas</div>
+              <div class="stat__value">${totalRespostas}</div>
+              <div class="stat__sub">Todas as matérias</div>
             </div>
             <div class="card stat card--hover">
               <div class="stat__head">
                 <div class="stat__icon">${icon('target',16)}</div>
-                <span class="stat__delta">↑ +4.2%</span>
               </div>
-              <div class="stat__label">Accuracy</div>
-              <div class="stat__value">76<span class="stat__value-unit">%</span></div>
-              <div class="stat__sub">Last 7 days, all subjects</div>
+              <div class="stat__label">Taxa de acerto</div>
+              <div class="stat__value">${taxaAcerto}</div>
+              <div class="stat__sub">Média geral</div>
+            </div>
+            <div class="card stat card--hover">
+              <div class="stat__head">
+                <div class="stat__icon stat__icon--am">${icon('check-square',16)}</div>
+              </div>
+              <div class="stat__label">Tarefas pendentes</div>
+              <div class="stat__value">${pending}</div>
+              <div class="stat__sub">${s.tasks.length} total</div>
             </div>
             <div class="card stat card--hover">
               <div class="stat__head">
                 <div class="stat__icon stat__icon--rs">${icon('alert',16)}</div>
-                <span class="stat__delta stat__delta--down">↓ -8%</span>
               </div>
-              <div class="stat__label">Weakest subject</div>
-              <div class="stat__value" style="font-size:22px">Chem</div>
-              <div class="stat__sub">Stoichiometry · 54% accuracy</div>
+              <div class="stat__label">Tópico mais fraco</div>
+              <div class="stat__value" style="font-size:${fracoNome.length > 6 ? '16px' : '22px'}">${fracoNome}</div>
+              <div class="stat__sub">${fracoMateria} · ${fracoTaxa} acerto</div>
             </div>
           </div>
         </section>
@@ -98,11 +139,14 @@ function render() {
             <div class="card__header">
               <div>
                 <div class="card__title">${icon('route',16)} Roadmap progress</div>
-                <div class="card__sub">By subject · ENEM 2026 prep · updated 2h ago</div>
+                <div class="card__sub">By subject · ENEM 2026 prep</div>
               </div>
               <a href="pages/roadmap.html" class="btn btn--ghost btn--sm">View all ${icon('arrow-right',12)}</a>
             </div>
-            ${buildRoadmapRows(s.subjects)}
+            ${buildRoadmapRows(s.subjects.length ? s.subjects : State.roadmap.map((r,i) => ({
+              id:i, name:r.subject, color:'#6366F1', color2:'#818CF8',
+              init:r.subject[0], accuracy:r.pct, status:'track', topic:r.current, pct:r.pct
+            })))}
           </div>
         </section>
 
@@ -131,7 +175,7 @@ function render() {
               <div class="card__header">
                 <div>
                   <div class="card__title">${icon('bar-chart',16)} Accuracy by subject</div>
-                  <div class="card__sub">Rolling 30-day average</div>
+                  <div class="card__sub">Based on diagnostics</div>
                 </div>
               </div>
               <div style="display:flex;flex-direction:column;gap:10px">${buildSubjectBreakdown(s.subjects)}</div>
@@ -146,7 +190,7 @@ function render() {
               <div class="card__header">
                 <div>
                   <div class="card__title">${icon('check-square',16)} Today's tasks</div>
-                  <div class="card__sub">${pending} pending · ${s.tasks.length - pending} done</div>
+                  <div class="card__sub">${pending} pending · ${s.tasks.filter(t=>t.status==='CONCLUIDA').length} done</div>
                 </div>
                 <a href="pages/tasks.html" class="btn btn--secondary btn--sm">${icon('arrow-right',12)} See all</a>
               </div>
@@ -156,23 +200,20 @@ function render() {
               <div class="card__header">
                 <div>
                   <div class="card__title" style="color:var(--fg-1)">${icon('sparkles',16)} AI insights</div>
-                  <div class="card__sub">Generated from your last 7 days of activity</div>
+                  <div class="card__sub">Generated from your performance data</div>
                 </div>
-                <button class="btn btn--ghost btn--sm" onclick="showToast('Insights refreshed!')">Refresh ${icon('refresh-cw',12)}</button>
+                <button class="btn btn--ghost btn--sm" onclick="loadAI()">Refresh ${icon('refresh-cw',12)}</button>
               </div>
-              ${[
-                { ico:'alert', text:'Focus more on Algebra — quadratic functions accuracy dropped to 58%.', meta:'Detected from 3 quizzes', action:'Open practice set' },
-                { ico:'rotate-ccw', text:'Review Chemistry basics — stoichiometry needs a refresher.', meta:'Last reviewed 14 days ago', action:'Start review' },
-                { ico:'zap', text:"You're 27% faster on Biology this week. Push the topic.", meta:'Trend: 7-day window', action:'Add advanced drills' },
-              ].map(m => `
-                <div class="ai-msg">
-                  <div class="ai-msg__icon">${icon(m.ico,14)}</div>
-                  <div class="ai-msg__body">
-                    <div class="ai-msg__text">${m.text}</div>
-                    <div class="ai-msg__meta"><b>StudyMind AI</b> · ${m.meta}</div>
-                    <a class="ai-msg__action" onclick="showToast('Opening: ${m.action}')">${m.action} ${icon('arrow-right',12)}</a>
-                  </div>
-                </div>`).join('')}
+              <div id="ai-panel-content">
+                ${aiInsights.map(m => `
+                  <div class="ai-msg">
+                    <div class="ai-msg__icon">${icon(m.ico,14)}</div>
+                    <div class="ai-msg__body">
+                      <div class="ai-msg__text">${m.text}</div>
+                      <div class="ai-msg__meta"><b>StudyMind AI</b> · ${m.meta}</div>
+                    </div>
+                  </div>`).join('')}
+              </div>
             </div>
           </div>
         </section>
@@ -185,31 +226,86 @@ function render() {
 }
 
 function renderTasks() {
-  const pLabel = { high:'High', med:'Medium', low:'Low' };
   const tasks = State.tasks.slice(0, 5);
-  document.getElementById('task-list').innerHTML = tasks.map(t => `
-    <div class="task${t.done ? ' task--done':''}" onclick="toggleTask(${t.id})">
+  const el = document.getElementById('task-list');
+  if (!el) return;
+  if (!tasks.length) {
+    el.innerHTML = `<div class="empty-state">${icon('check-square',32)}<p>Nenhuma tarefa encontrada</p></div>`;
+    return;
+  }
+  el.innerHTML = tasks.map(t => {
+    const done = t.status === 'CONCLUIDA';
+    return `
+    <div class="task${done ? ' task--done':''}" onclick="toggleTask(${t.id})">
       <div class="task__check">${icon('check',10)}</div>
       <div>
-        <div class="task__title">${t.title}</div>
-        <div class="task__sub">${t.sub}</div>
+        <div class="task__title">${t.descricao || t.titulo || '—'}</div>
+        <div class="task__sub">${t.tipo || ''} · ${t.topicoNome || ''}</div>
       </div>
-      <span class="badge badge--${t.priority === 'high' ? 'rose' : t.priority === 'med' ? 'amber' : 'muted'}">${pLabel[t.priority]}</span>
-      <div class="task__time">${t.time}</div>
-    </div>`).join('');
+      <span class="badge badge--muted">${t.tipo || ''}</span>
+      <div class="task__time">${t.prazo ? t.prazo.slice(0,10) : '—'}</div>
+    </div>`;
+  }).join('');
 }
 
-function toggleTask(id) {
+async function toggleTask(id) {
   const t = State.tasks.find(t => t.id === id);
-  if (t) {
-    t.done = !t.done;
-    showToast(t.done ? 'Task completed!' : 'Task reopened');
+  if (!t) return;
+  const newStatus = t.status === 'CONCLUIDA' ? 'PENDENTE' : 'CONCLUIDA';
+  try {
+    await apiPut(`/tarefas/${id}`, { ...t, status: newStatus });
+    t.status = newStatus;
+    showToast(newStatus === 'CONCLUIDA' ? 'Task completed!' : 'Task reopened');
     renderTasks();
-  }
+  } catch(err) { handleApiError(err); }
 }
 
-render();
-initDrawer();
+async function loadAI() {
+  const uid = getUsuarioId();
+  if (!uid) return;
+  try {
+    _recomData = await apiGet(`/recomendacao/usuario/${uid}`);
+    render();
+  } catch(err) { handleApiError(err); }
+}
+
+async function loadDashboard() {
+  const uid = getUsuarioId();
+  if (!uid) return;
+  try {
+    [_dashData] = await Promise.allSettled([
+      apiGet(`/dashboard/usuario/${uid}`),
+    ]).then(r => r.map(x => x.status === 'fulfilled' ? x.value : null));
+  } catch { _dashData = null; }
+}
+
+async function loadTasks() {
+  const uid = getUsuarioId();
+  if (!uid) return;
+  try {
+    const data = await apiGet(`/tarefas/usuario/${uid}`);
+    State.tasks = Array.isArray(data) ? data : [];
+  } catch(err) { handleApiError(err); }
+}
+
+async function loadSubjects() {
+  try {
+    const data = await apiGet('/materias');
+    State.subjects = Array.isArray(data)
+      ? data.filter(m => m.ativa !== false).map(materiaToSubject)
+      : [];
+  } catch { State.subjects = []; }
+}
+
+async function init() {
+  await Promise.all([loadDashboard(), loadTasks(), loadSubjects()]);
+  // Load AI in parallel without blocking render
+  apiGet(`/recomendacao/usuario/${getUsuarioId()}`).then(d => { _recomData = d; }).catch(() => {});
+  render();
+  initDrawer();
+}
+
+init();
 </script>
 
 <style>
